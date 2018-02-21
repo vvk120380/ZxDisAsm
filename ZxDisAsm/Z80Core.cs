@@ -250,6 +250,46 @@ namespace ZxDisAsm
             set { reg_[(int)regs.F] = value; }
         }
 
+        public ushort AF_
+        {
+            get { return (ushort)((reg_[(int)regs.A] << 8) + reg_[(int)regs.F]); }
+            set
+            {
+                reg_[(int)regs.A] = (byte)(value & 0x00FF);
+                reg_[(int)regs.F] = (byte)(value >> 8);
+            }
+        }
+
+        public ushort BC_
+        {
+            get { return (ushort)((reg_[(int)regs.B] << 8) + reg_[(int)regs.C]); }
+            set
+            {
+                reg_[(int)regs.C] = (byte)(value & 0x00FF);
+                reg_[(int)regs.B] = (byte)(value >> 8);
+            }
+        }
+
+        public ushort DE_
+        {
+            get { return (ushort)((reg_[(int)regs.D] << 8) + reg_[(int)regs.E]); }
+            set
+            {
+                reg_[(int)regs.D] = (byte)(value & 0x00FF);
+                reg_[(int)regs.E] = (byte)(value >> 8);
+            }
+        }
+
+        public ushort HL_
+        {
+            get { return (ushort)((reg_[(int)regs.H] << 8) + reg_[(int)regs.L]); }
+            set
+            {
+                reg_[(int)regs.H] = (byte)(value & 0x00FF);
+                reg_[(int)regs.L] = (byte)(value >> 8);
+            }
+        }
+
         public bool F_CARRY
         {
             get
@@ -370,5 +410,137 @@ namespace ZxDisAsm
             }
         }
 
+        public short GetDisplacement(byte val)
+        {
+            short res = (short)((128 ^ val) - 128);
+            return res;
+        }
+
+
+        public void Add_R(int reg)
+        {
+            F_NEG = false;
+            F_HALF = ((((A & 0x0f) + (reg & 0x0f)) & (int)flags.H) != 0);
+            int ans = (A + reg) & 0xff;
+            F_CARRY = ((A + reg) & 0x100) != 0;
+            F_PARITY = ((A ^ ~reg) & (A ^ ans) & 0x80) != 0;
+            F_SIGN = (ans & (int)flags.S) != 0;
+            F_ZERO = ans == 0;
+            F_3 = (ans & (int)flags.n3) != 0;
+            F_5 = (ans & (int)flags.n5) != 0;
+            A = (byte)ans;
+        }
+        public ushort Add_RR(int rr1, int rr2)
+        {
+            F_NEG = false;
+            F_HALF = (((rr1 & 0xfff) + (rr2 & 0xfff)) & 0x1000) != 0;
+            rr1 += rr2;
+            F_CARRY = (rr1 & 0x10000) != 0;
+            F_3 = ((rr1 >> 8) & (int)flags.n3) != 0;
+            F_5 = ((rr1 >> 8) & (int)flags.n5) != 0;
+            return (ushort)(rr1 & 0xffff);
+        }
+
+        public byte Inc(int reg)
+        {
+            F_PARITY = (reg == 0x7f);
+            F_NEG = false;
+            F_HALF = (((reg & 0x0f) + 1) & (int)flags.H) != 0);
+            reg = (reg + 1) & 0xff;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & (int)flags.S) != 0;
+            return (byte)reg;
+        }
+
+        public void Adc_R(int reg)
+        {
+            F_NEG = false;
+            int fc = ((F & (int)flags.C) != 0 ? 1 : 0);
+            F_HALF = (((A & 0x0f) + (reg & 0x0f) + fc) & (int)flags.H) != 0;
+            int ans = (A + reg + fc) & 0xff;
+            F_CARRY = ((A + reg + fc) & 0x100) != 0;
+            F_PARITY = ((A ^ ~reg) & (A ^ ans) & 0x80) != 0;
+            F_SIGN = (ans & (int)flags.S) != 0;
+            F_ZERO = ans == 0;
+            F_3 = (ans & (int)flags.n3) != 0;
+            F_5 = (ans & (int)flags.n5) != 0;
+            A = (byte)ans;
+        }
+
+        //Add with carry into HL
+        public void Adc_RR(int reg)
+        {
+            F_NEG = false;
+            int fc = ((F & (int)flags.C) != 0 ? 1 : 0);
+            int ans = (HL + reg + fc) & 0xffff;
+            F_CARRY = ((HL + reg + fc) & 0x10000) != 0;
+            F_HALF = (((HL & 0xfff) + (reg & 0xfff) + fc) & 0x1000) != 0;
+            F_PARITY = ((HL ^ ~reg) & (HL ^ ans) & 0x8000) != 0;
+            F_SIGN = (ans & ((int)flags.S << 8)) != 0;
+            F_ZERO = ans == 0;
+            F_3 = ((ans >> 8) & (int)flags.n3) != 0;
+            F_5 = ((ans >> 8) & (int)flags.n5) != 0;
+            HL = (ushort)ans;
+        }
+
+        public void Sub_R(int reg)
+        {
+            F_NEG = true;
+            int ans = (A - reg) & 0xff;
+            F_CARRY = ((A - reg) & 0x100) != 0;
+            F_3 = (ans & (int)flags.n3) != 0;
+            F_5 = (ans & (int)flags.n5) != 0;
+            F_PARITY = ((A ^ reg) & (A ^ ans) & 0x80) != 0;
+            F_SIGN = (ans & (int)flags.S) != 0;
+            F_HALF = (((A & 0x0f) - (reg & 0x0f)) & (int)flags.H) != 0;
+            F_ZERO = ans == 0;
+            F_NEG = true;
+            A = (byte)ans; 
+        }
+
+        public byte Dec_R(int reg)
+        {
+            F_NEG = true;
+            F_PARITY = (reg == 0x80);
+            F_HALF = (((reg & 0x0f) - 1) & (int)flags.H) != 0;
+            reg = (reg - 1) & 0xff;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & (int)flags.S) != 0;
+            return (byte)reg;
+        }
+
+        public void Sbc_R(int reg)
+        {
+            F_NEG = true;
+            int fc = ((F & (int)flags.C) != 0 ? 1 : 0);
+            int ans = (A - reg - fc) & 0xff;
+            F_CARRY = ((A - reg - fc) & 0x100) != 0;
+            F_PARITY = ((A ^ reg) & (A ^ ans) & 0x80) != 0;
+            F_SIGN = (ans & (int)flags.S) != 0;
+            F_HALF = (((A & 0x0f) - (reg & 0x0f) - fc) & (int)flags.H) != 0;
+            F_ZERO = ans == 0;
+            F_3 = (ans & (int)flags.n3) != 0;
+            F_5 = (ans & (int)flags.n5) != 0;
+            A = (byte)ans;
+        }
+
+        public void Sbc_RR(int reg)
+        {
+            F_NEG = true;
+            int fc = ((F & (int)flags.C) != 0 ? 1 : 0);
+            F_HALF = (((HL & 0xfff) - (reg & 0xfff) - fc) & 0x1000) != 0;
+            int ans = (HL - reg - fc) & 0xffff;
+            F_CARRY = ((HL - reg - fc) & 0x10000) != 0;
+            F_PARITY = ((HL ^ reg) & (HL ^ ans) & 0x8000) != 0;
+            F_SIGN = (ans & ((int)flags.S << 8)) != 0;
+            F_ZERO = ans == 0;
+            F_3 = (ans & (int)flags.n3) != 0;
+            F_5 = (ans & (int)flags.n5) != 0;
+            HL = (ushort)ans;
+        }
     }
 }
