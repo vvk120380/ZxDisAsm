@@ -9,15 +9,18 @@ namespace ZxDisAsm
     partial class Zx48Machine : Z80Core
     {
         byte opcode;
-        ushort tmp;
+        byte tmp8;
+        ushort tmp16;
 
         public Zx48Machine()
         {
 
         }
+
         public void Reset()
         {
-            this.PC = 0x0000;
+            PC = 0x0000;
+            SP = 0xffff;
         }
 
         byte peek8(ushort addr)
@@ -58,9 +61,18 @@ namespace ZxDisAsm
             return tmp;
         }
 
-        bool isBIT(byte F, byte mask)
+        public void PushStack(int val)
         {
-            return (((F & mask) == mask) ? true : false);
+            SP = (ushort)((SP - 2) & 0xffff);
+            poke8((ushort)((SP + 1) & 0xffff), (byte)(val >> 8));
+            poke8((ushort)(SP & 0xffff), (byte)(val & 0xff));
+        }
+
+        public ushort PopStack()
+        {
+            int val = (peek8(SP)) | (peek8((ushort)(SP + 1)) << 8);
+            SP = (ushort)((SP + 2) & 0xffff);
+            return (ushort)val;
         }
 
         public void Execute()
@@ -163,11 +175,11 @@ namespace ZxDisAsm
                 //Команда помещения непосредственного 8 - битного значения в память по адресу в регистре HL
                 case 0x36: { poke8(HL, next8()); break; }  //LD (HL),N
                 //Команды обмена значений 16 - битных регистровых пар
-                case 0xD9: { tmp = BC; BC = BC_; BC_ = tmp; tmp = DE; DE = DE_; DE_ = tmp; tmp = HL; HL = HL_; HL_ = tmp; break; } //EXX
-                case 0x08: { tmp = AF; AF = AF_; AF_ = tmp; break; } //EX AF,AF'
-                case 0xEB: { tmp = DE; DE = HL; HL = tmp; break; } //EX DE,HL
+                case 0xD9: { tmp16 = BC; BC = BC_; BC_ = tmp16; tmp16 = DE; DE = DE_; DE_ = tmp16; tmp16 = HL; HL = HL_; HL_ = tmp16; break; } //EXX
+                case 0x08: { tmp16 = AF; AF = AF_; AF_ = tmp16; break; } //EX AF,AF'
+                case 0xEB: { tmp16 = DE; DE = HL; HL = tmp16; break; } //EX DE,HL
                 //Команды обмена значений 16-битных регистровых пар и памяти
-                case 0xE3: { tmp = peek16(SP); poke16(SP, HL); HL = tmp; break; } //EX(SP),HL
+                case 0xE3: { tmp16 = peek16(SP); poke16(SP, HL); HL = tmp16; break; } //EX(SP),HL
                 //Команды сложения значения аккумулятора со значением 8-битного регистра
                 case 0x87: { Add_R(A); break; } //ADD A,A
                 case 0x80: { Add_R(B); break; } //ADD A,B
@@ -251,6 +263,86 @@ namespace ZxDisAsm
                 case 0xDE: { Sbc_R(next8()); break; } //SBC A,N
                 //Команда вычитания 8 - битного значения в памяти по адресу в регистре HL из значения аккумулятора с учетом флага переноса
                 case 0x9E: { Sbc_R(peek8(HL)); break; } //SBC A,(HL)
+                //Команды сравнения значения 8-битного регистра со значением аккумулятора
+                case 0xBF: { Cp_R(A); break; } //CP A
+                case 0xB8: { Cp_R(B); break; } //CP B
+                case 0xB9: { Cp_R(C); break; } //CP C
+                case 0xBA: { Cp_R(D); break; } //CP D
+                case 0xBB: { Cp_R(E); break; } //CP E
+                case 0xBC: { Cp_R(H); break; } //CP H
+                case 0xBD: { Cp_R(L); break; } //CP L
+                //Команда сравнения непосредственного 8-битного значения со значением аккумулятора
+                case 0xFE: { Cp_R(next8()); break; } //CP N
+                //Команда сравнения 8-битного значения в памяти по адресу в регистре HL со значением аккумулятора
+                case 0xBE: { Cp_R(peek8(HL)); break; } //CP (HL)
+                //Команды логического «И» над значением 8-битного регистра и значением аккумулятора
+                case 0xA7: { And_R(A); break; } //AND A
+                case 0xA0: { And_R(B); break; } //AND B
+                case 0xA1: { And_R(C); break; } //AND C
+                case 0xA2: { And_R(D); break; } //AND D
+                case 0xA3: { And_R(E); break; } //AND E
+                case 0xA4: { And_R(H); break; } //AND H
+                case 0xA5: { And_R(L); break; } //AND L
+                //Команда логического «И» над непосредственным 8-битным значением и значением аккумулятора
+                case 0xE6: { And_R(next8()); break; } //AND N
+                //Команда логического «И» над 8-битным значением в памяти по адресу в регистре HL и значением аккумулятора
+                case 0xA6: { And_R(peek8(HL)); break; } //AND (HL)
+                //Команды логического «ИЛИ» над значением 8-битного регистра и значением аккумулятора
+                case 0xB7: { Or_R(A); break; } //OR A
+                case 0xB0: { Or_R(B); break; } //OR B
+                case 0xB1: { Or_R(C); break; } //OR C
+                case 0xB2: { Or_R(D); break; } //OR D
+                case 0xB3: { Or_R(E); break; } //OR E
+                case 0xB4: { Or_R(H); break; } //OR H
+                case 0xB5: { Or_R(L); break; } //OR L
+                //Команда логического «ИЛИ» над непосредственным 8-битным значением и значением аккумулятора
+                case 0xF6: { Or_R(next8()); break; } //OR N
+                //Команда логического «ИЛИ» над 8-битным значением в памяти по адресу в регистре HL и значением аккумулятора
+                case 0xB6: { Or_R(peek8(HL)); break; } //OR (HL)
+                //Команды логического «исключающего ИЛИ» над значением 8-битного регистра и значением аккумулятора
+                case 0xAF: { Xor_R(A); break; } //XOR A
+                case 0xA8: { Xor_R(B); break; } //XOR B
+                case 0xA9: { Xor_R(C); break; } //XOR C
+                case 0xAA: { Xor_R(D); break; } //XOR D
+                case 0xAB: { Xor_R(E); break; } //XOR E
+                case 0xAC: { Xor_R(H); break; } //XOR H
+                case 0xAD: { Xor_R(L); break; } //XOR L
+                //Команда логического «исключающего ИЛИ» над непосредственным 8 - битным значением и значением аккумулятора
+                case 0xEE: { Xor_R(next8()); break; } //XOR N
+                //Команда логического «исключающего ИЛИ» над 8-битным значением в памяти по адресу в регистре HL и значением аккумулятора
+                case 0xAE: { Xor_R(peek8(HL)); break; } //XOR (HL)
+                //Команда безусловного перехода по непосредственному адресу
+                case 0xC3: { PC = next16(); break; } //JP NN
+                //Команды безусловного перехода по адресу в 16-битном регистре
+                case 0xE9: { PC = peek16(HL); break; } //JP (HL)
+                //Команды условного перехода по непосредственному адресу
+                case 0xC2: { PC = !F_ZERO ? next16() : (ushort)(PC + 2); break; } //JP NZ,NN
+                case 0xCA: { PC = F_ZERO ? next16() : (ushort)(PC + 2); break; }  //JP Z,NN
+                case 0xD2: { PC = !F_CARRY ? next16() : (ushort)(PC + 2); break; } //JP NZ,NN
+                case 0xDA: { PC = F_CARRY ? next16() : (ushort)(PC + 2); break; }  //JP Z,NN
+                case 0xE2: { PC = !F_PARITY ? next16() : (ushort)(PC + 2); break; } //JP NZ,NN
+                case 0xEA: { PC = F_PARITY ? next16() : (ushort)(PC + 2); break; }  //JP Z,NN
+                case 0xF2: { PC = !F_SIGN ? next16() : (ushort)(PC + 2); break; } //JP NZ,NN
+                case 0xFA: { PC = F_SIGN ? next16() : (ushort)(PC + 2); break; }  //JP Z,NN
+                //Команда безусловного относительного перехода
+                case 0x18: { PC = (ushort)(PC + GetDisplacement(next8()) - 2);  break; }  //JP s
+                //Команды условного относительного перехода
+                case 0x20: { PC = !F_ZERO  ? (ushort)(PC + GetDisplacement(next8()) - 2) : (ushort)(PC + 1); break; } //JP NZ,NN
+                case 0x28: { PC = F_ZERO   ? (ushort)(PC + GetDisplacement(next8()) - 2) : (ushort)(PC + 1); break; }  //JP Z,NN
+                case 0x30: { PC = !F_CARRY ? (ushort)(PC + GetDisplacement(next8()) - 2) : (ushort)(PC + 1); break; } //JP NZ,NN
+                case 0x38: { PC = F_CARRY  ? (ushort)(PC + GetDisplacement(next8()) - 2) : (ushort)(PC + 1); break; }  //JP Z,NN
+                //Команда условного относительного перехода с организацией цикла по регистру B
+                case 0x10: { PC = (--B != 0) ? (ushort)(PC + GetDisplacement(next8()) - 2) : ++PC; break;}  //DJNZ s
+                //Команды помещения значения 16-битной регистровой пары в стек
+                case 0xF5: { PushStack(AF); break; }  //PUSH AF
+                case 0xC5: { PushStack(BC); break; }  //PUSH BC
+                case 0xD5: { PushStack(DE); break; }  //PUSH DE
+                case 0xE5: { PushStack(HL); break; }  //PUSH HL
+                //Команды снятия значения 16-битной регистровой пары со стека
+                case 0xF1: { AF = PopStack(); break; } //POP AF
+                case 0xC1: { BC = PopStack(); break; } //POP BC
+                case 0xD1: { DE = PopStack(); break; } //POP DE
+                case 0xE1: { HL = PopStack(); break; } //POP HL
 
 
                 case 0xDD:
@@ -313,7 +405,7 @@ namespace ZxDisAsm
                             //Команды помещения непосредственного 8-битного значения в память по адресу в индексном регистре (со смещением)
                             case 0x36: { poke8((ushort)(IX + GetDisplacement(next8())), next8()); break; } //LD (IX+s),N
                             //Команды обмена значений 16-битных регистровых пар и памяти
-                            case 0xE3: { tmp = peek16(SP); poke16(SP, IX); IX = tmp; break; } //EX(SP),IX
+                            case 0xE3: { tmp16 = peek16(SP); poke16(SP, IX); IX = tmp16; break; } //EX(SP),IX
                             //Команды сложения значения аккумулятора со значением 8-битного регистра
                             case 0x84: { Add_R(IXH); break; } //ADD A,XH
                             case 0x85: { Add_R(IXL); break; } //ADD A,XL
@@ -353,8 +445,32 @@ namespace ZxDisAsm
                             case 0x9D: { Sbc_R(IXL); break; } //SBC A,IXL
                             //Команды вычитания 8-битного значения в памяти по адресу в индексном регистре (со смещением) из значения аккумулятора с учетом флага переноса
                             case 0x9E: { Sbc_R((ushort)(IX + GetDisplacement(next8()))); break; } //SBC A,(IX + s)
-
-
+                            //Команды сравнения значения 8-битного регистра со значением аккумулятора
+                            case 0xBC: { Cp_R(IXH); break; } //CP IXH
+                            case 0xBD: { Cp_R(IXL); break; } //CP IXL
+                            //Команды сравнения 8-битного значения в памяти по адресу в индексном регистре (со смещением) со значением аккумулятора
+                            case 0xBE: { Cp_R((ushort)(IX + GetDisplacement(next8()))); break; }// CP(IX + s)
+                            //Команды логического «И» над значением 8-битного регистра и значением аккумулятора
+                            case 0xA4: { And_R(IXH); break; } //AND IXH
+                            case 0xA5: { And_R(IXL); break; } //AND IXL
+                            //Команды логического «И» над 8-битным значением в памяти по адресу в индексном регистре (со смещением) и значением аккумулятора
+                            case 0xA6: { And_R((ushort)(IX + GetDisplacement(next8()))); break; }// AND(IX + s)
+                            //Команды логического «ИЛИ» над значением 8-битного регистра и значением аккумулятора
+                            case 0xB4: { Or_R(IXH); break; } //OR IXH
+                            case 0xB5: { Or_R(IXL); break; } //OR IXL
+                            //Команды логического «ИЛИ» над 8-битным значением в памяти по адресу в индексном регистре (со смещением) и значением аккумулятора
+                            case 0xB6: { Or_R((ushort)(IX + GetDisplacement(next8()))); break; }// OR(IX + s)
+                            //Команды логического «исключающего ИЛИ» над значением 8-битного регистра и значением аккумулятора
+                            case 0xAC: { Xor_R(IXH); break; } //XOR IXH
+                            case 0xAD: { Xor_R(IXL); break; } //XOR IXL
+                            //Команды логического «исключающего ИЛИ» над 8-битным значением в памяти по адресу в индексном регистре (со смещением) и значением аккумулятора
+                            case 0xAE: { Xor_R((ushort)(IX + GetDisplacement(next8()))); break; }// XOR(IX + s)
+                            //Команды безусловного перехода по адресу в 16-битном регистре
+                            case 0xE9: { PC = peek16(IX); break; } //JP (HL)
+                            //Команды помещения значения 16-битной регистровой пары в стек
+                            case 0xE5: { PushStack(IX); break; }  //PUSH IX
+                            //Команды снятия значения 16-битной регистровой пары со стека
+                            case 0xE1: { IX = PopStack(); break; } //POP IX
                         }
                         break;
                     }
@@ -419,7 +535,7 @@ namespace ZxDisAsm
                             //Команды помещения непосредственного 8-битного значения в память по адресу в индексном регистре (со смещением)
                             case 0x36: { poke8((ushort)(IY + GetDisplacement(next8())), next8()); break; } //LD (IY+s),N
                             //Команды обмена значений 16-битных регистровых пар и памяти
-                            case 0xE3: { tmp = peek16(SP); poke16(SP, IY); IY = tmp; break; } //EX(SP),IY
+                            case 0xE3: { tmp16 = peek16(SP); poke16(SP, IY); IY = tmp16; break; } //EX(SP),IY
                             //Команды сложения значения аккумулятора со значением 8-битного регистра
                             case 0x84: { Add_R(IYH); break; } //ADD A,YH
                             case 0x85: { Add_R(IYL); break; } //ADD A,YL
@@ -459,7 +575,32 @@ namespace ZxDisAsm
                             case 0x9D: { Sbc_R(IYL); break; } //SBC A,IYL
                             //Команды вычитания 8-битного значения в памяти по адресу в индексном регистре (со смещением) из значения аккумулятора с учетом флага переноса
                             case 0x9E: { Sbc_R((ushort)(IY + GetDisplacement(next8()))); break; } //SBC A,(IY + s)
-
+                            //Команды сравнения значения 8-битного регистра со значением аккумулятора
+                            case 0xBC: { Cp_R(IYH); break; } //CP IYH
+                            case 0xBD: { Cp_R(IYL); break; } //CP IYL
+                            //Команды сравнения 8-битного значения в памяти по адресу в индексном регистре (со смещением) со значением аккумулятора
+                            case 0xBE: { Cp_R((ushort)(IY + GetDisplacement(next8()))); break; }// CP(IY + s)
+                            //Команды логического «И» над значением 8-битного регистра и значением аккумулятора
+                            case 0xA4: { And_R(IYH); break; } //AND IYH
+                            case 0xA5: { And_R(IYL); break; } //AND IYL
+                            //Команды логического «И» над 8-битным значением в памяти по адресу в индексном регистре (со смещением) и значением аккумулятора
+                            case 0xA6: { And_R((ushort)(IY + GetDisplacement(next8()))); break; }// AND(IY + s)
+                            //Команды логического «ИЛИ» над значением 8-битного регистра и значением аккумулятора
+                            case 0xB4: { Or_R(IYH); break; } //OR IYH
+                            case 0xB5: { Or_R(IYL); break; } //OR IYL
+                            //Команды логического «ИЛИ» над 8-битным значением в памяти по адресу в индексном регистре (со смещением) и значением аккумулятора
+                            case 0xB6: { Or_R((ushort)(IY + GetDisplacement(next8()))); break; }// OR(IY + s)
+                            //Команды логического «исключающего ИЛИ» над значением 8-битного регистра и значением аккумулятора
+                            case 0xAC: { Xor_R(IYH); break; } //XOR IYH
+                            case 0xAD: { Xor_R(IYL); break; } //XOR IYL
+                            //Команды логического «исключающего ИЛИ» над 8-битным значением в памяти по адресу в индексном регистре (со смещением) и значением аккумулятора
+                            case 0xAE: { Xor_R((ushort)(IY + GetDisplacement(next8()))); break; }// XOR(IY + s)
+                            //Команды безусловного перехода по адресу в 16-битном регистре
+                            case 0xE9: { PC = peek16(IY); break; } //JP (HL)
+                            //Команды помещения значения 16-битной регистровой пары в стек
+                            case 0xE5: { PushStack(IY); break; }  //PUSH IY
+                            //Команды снятия значения 16-битной регистровой пары со стека
+                            case 0xE1: { IY = PopStack(); break; } //POP IY
                         }
                         break;
                     }
@@ -476,10 +617,10 @@ namespace ZxDisAsm
                                     F_PARITY = IFF2;
                                     F_NEG = false;
                                     F_HALF = false;
-                                    F_3 = isBIT(I, (byte)flags.n3);
-                                    F_5 = isBIT(I, (byte)flags.n5);
-                                    F_SIGN = isBIT(I, (byte)flags.S);
-                                    F_ZERO = (I == 0) ? true : false;
+                                    F_3 = (I & (int)flags.n3) > 0;
+                                    F_5 = (I & (int)flags.n5) > 0;
+                                    F_SIGN = (I & (int)flags.S) > 0;
+                                    F_ZERO = I == 0;
                                     break;
                                 } //LD A,I
                             case 0x4F: { R = A; break; } //LD R,A
@@ -489,10 +630,10 @@ namespace ZxDisAsm
                                     F_PARITY = IFF2;
                                     F_NEG = false;
                                     F_HALF = false;
-                                    F_3 = isBIT(R, (byte)flags.n3);
-                                    F_5 = isBIT(R, (byte)flags.n5);
-                                    F_SIGN = isBIT(R, (byte)flags.S);
-                                    F_ZERO = (R == 0) ? true : false;
+                                    F_3 = (R & (int)flags.n3) > 0;
+                                    F_5 = (R & (int)flags.n5) > 0;
+                                    F_SIGN = (I & (int)flags.S) > 0;
+                                    F_ZERO = R == 0;
                                     break;
                                 } //LD A, R
 

@@ -8,6 +8,19 @@ namespace ZxDisAsm
 {
     class Z80Core
     {
+
+        public Z80Core()
+        {
+            int i, j, k;
+            byte p;
+
+            for (i = 0; i < 256; i++)
+            {
+                j = i; p = 0;
+                for (k = 0; k < 8; k++) { p ^= (byte)(j & 1); j >>= 1; }
+                parity[i] = (byte)(p > 0 ? 0 : (byte)flags.P);
+            }
+        }
         private enum regs
         {
             B, C,
@@ -44,6 +57,8 @@ namespace ZxDisAsm
         private ushort regSP;
         private ushort regPC;
 
+        protected byte[] parity = new byte[256];
+
         public byte B
         {
             get { return reg[(int)regs.B]; }
@@ -73,7 +88,6 @@ namespace ZxDisAsm
             get { return reg[(int)regs.L]; }
             set { reg[(int)regs.L] = value; }
         }
-
 
         public byte H
         {
@@ -445,7 +459,7 @@ namespace ZxDisAsm
         {
             F_PARITY = (reg == 0x7f);
             F_NEG = false;
-            F_HALF = (((reg & 0x0f) + 1) & (int)flags.H) != 0);
+            F_HALF = (((reg & 0x0f) + 1) & (int)flags.H) != 0;
             reg = (reg + 1) & 0xff;
             F_3 = (reg & (int)flags.n3) != 0;
             F_5 = (reg & (int)flags.n5) != 0;
@@ -541,6 +555,62 @@ namespace ZxDisAsm
             F_3 = (ans & (int)flags.n3) != 0;
             F_5 = (ans & (int)flags.n5) != 0;
             HL = (ushort)ans;
+        }
+
+        public void Cp_R(int reg)
+        {
+            F_NEG = true;
+            int result = A - reg;
+            int ans = result & 0xff;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            F_HALF = (((A & 0x0f) - (reg & 0x0f)) & (int)flags.H) != 0;
+            F_PARITY = ((A ^ reg) & (A ^ ans) & 0x80) != 0;
+            F_SIGN = (ans & (int)flags.S) != 0;
+            F_ZERO = ans == 0;
+            F_CARRY = (result & 0x100) != 0;
+        }
+
+        public void And_R(int reg)
+        {
+            F_CARRY = false;
+            F_NEG = false;
+            int ans = A & reg;
+            F_SIGN = (ans & (int)flags.S) != 0;
+            F_HALF = true;
+            F_ZERO = ans == 0;
+            F_PARITY = (parity[ans] & (int)flags.P) > 0;
+            F_3 = (ans & (int)flags.n3) != 0;
+            F_5 = (ans & (int)flags.n5) != 0;
+            A = (byte)ans; 
+        }
+
+        public void Xor_R(int reg)
+        {
+            F_CARRY = false;
+            F_NEG = false;
+            int ans = (A ^ reg) & 0xff;
+            F_SIGN = (ans & (int)flags.S) != 0;
+            F_HALF = false;
+            F_ZERO = ans == 0;
+            F_PARITY = (parity[ans] & (int)flags.P) > 0;
+            F_3 = (ans & (int)flags.n3) != 0;
+            F_5 = (ans & (int)flags.n5) != 0;
+            A = (byte)ans;
+        }
+
+        public void Or_R(int reg)
+        {
+            F_CARRY = false;
+            F_NEG = false;
+            int ans = A | reg;
+            F_SIGN = (ans & (int)flags.S) != 0;
+            F_HALF = false;
+            F_ZERO =  ans == 0;
+            F_PARITY = (parity[ans] & (int)flags.P) > 0;
+            F_3 = (ans & (int)flags.n3) != 0;
+            F_5 = (ans & (int)flags.n5) != 0;
+            A = (byte)ans;
         }
     }
 }
