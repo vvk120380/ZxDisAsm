@@ -35,18 +35,18 @@ namespace ZxDisAsm
 
         public enum flags
         {
-            C  = 0x01,
-            N  = 0x02,
-            P  = 0x04,
+            C = 0x01,
+            N = 0x02,
+            P = 0x04,
             n3 = 0x08,
-            H  = 0x10,
+            H = 0x10,
             n5 = 0x20,
-            Z  = 0x40,
-            S  = 0x80
+            Z = 0x40,
+            S = 0x80
         };
 
         private byte[] reg = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };  //B, C, D, E, L, H, A, F, IXH, IXL, IYH, IYL, I, R 
-        private byte[] reg_ = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}; //B`, C`, D`, E`, L`, H`, A`, F` 
+        private byte[] reg_ = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }; //B`, C`, D`, E`, L`, H`, A`, F` 
 
 
         public bool IFF1;
@@ -146,7 +146,8 @@ namespace ZxDisAsm
         public ushort BC
         {
             get { return (ushort)((reg[(int)regs.B] << 8) + reg[(int)regs.C]); }
-            set {
+            set
+            {
                 reg[(int)regs.C] = (byte)(value & 0x00FF);
                 reg[(int)regs.B] = (byte)(value >> 8);
             }
@@ -511,7 +512,7 @@ namespace ZxDisAsm
             F_HALF = (((A & 0x0f) - (reg & 0x0f)) & (int)flags.H) != 0;
             F_ZERO = ans == 0;
             F_NEG = true;
-            A = (byte)ans; 
+            A = (byte)ans;
         }
 
         public byte Dec_R(int reg)
@@ -582,7 +583,7 @@ namespace ZxDisAsm
             F_PARITY = (parity[ans] & (int)flags.P) > 0;
             F_3 = (ans & (int)flags.n3) != 0;
             F_5 = (ans & (int)flags.n5) != 0;
-            A = (byte)ans; 
+            A = (byte)ans;
         }
 
         public void Xor_R(int reg)
@@ -606,11 +607,259 @@ namespace ZxDisAsm
             int ans = A | reg;
             F_SIGN = (ans & (int)flags.S) != 0;
             F_HALF = false;
-            F_ZERO =  ans == 0;
+            F_ZERO = ans == 0;
             F_PARITY = (parity[ans] & (int)flags.P) > 0;
             F_3 = (ans & (int)flags.n3) != 0;
             F_5 = (ans & (int)flags.n5) != 0;
             A = (byte)ans;
         }
+
+        //Shift left arithmetic register (SLA r)
+        public byte Sla_R(int reg)
+        {
+            int msb = reg & (int)flags.S; //save the msb bit
+            reg = (reg << 1) & 0xff;
+            F_CARRY = msb != 0;
+            F_HALF = false;
+            F_NEG = false;
+            F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & (int)flags.S) != 0;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_3 = (reg & (int)flags.n5) != 0;
+            return (byte)reg;
+        }
+
+        //Shift right arithmetic register (SRA r)
+        public byte Sra_R(int reg)
+        {
+            int lsb = reg & (int)flags.C; //save the lsb bit
+            reg = (reg >> 1) | (reg & (int)flags.S);
+            F_CARRY = lsb != 0;
+            F_HALF = false;
+            F_NEG = false;
+            F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & 0x80) != 0;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            return (byte)reg;
+        }
+
+        //Shift left logical register (SLI r)
+        public byte Sli_R(int reg)
+        {
+            int msb = reg & (int)flags.C; //save the msb bit
+            reg = reg << 1;
+            reg = (reg | 0x01) & 0xff;
+            F_CARRY = msb != 0;
+            F_HALF = false;
+            F_NEG = false;
+            F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & (int)flags.S) != 0;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            return (byte)reg;
+        }
+
+        //Shift right logical register (SRL r)
+        public byte Srl_R(int reg)
+        {
+            int lsb = reg & (int)flags.C; //save the lsb bit
+            reg = reg >> 1;
+            F_CARRY = lsb != 0;
+            F_HALF = false;
+            F_NEG = false;
+            F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & (int)flags.S) != 0;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            return (byte)reg;
+        }
+
+
+        public byte Rlc_R(int reg)
+        {
+            int msb = reg & (int)flags.S;
+            if (msb != 0)
+            {
+                reg = ((reg << 1) | 0x01) & 0xff;
+            }
+            else
+                reg = (reg << 1) & 0xff;
+            F_CARRY = msb != 0;
+            F_HALF = false;
+            F_NEG = false;
+            F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & (int)flags.S) != 0;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            return (byte)reg;
+        }
+
+        public byte Rrc_R(int reg)
+        {
+            int lsb = reg & (int)flags.C; //save the lsb bit
+            if (lsb != 0)
+            {
+                reg = (reg >> 1) | 0x80;
+            }
+            else
+                reg = reg >> 1;
+            F_CARRY = lsb != 0;
+            F_HALF = false;
+            F_NEG = false;
+            F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & (int)flags.S) != 0;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            return (byte)reg;
+        }
+
+        public byte Rl_R(int reg)
+        {
+            bool rc = (reg & (int)flags.S) != 0;
+            int msb = F & (int)flags.C; //save the msb bit
+            if (msb != 0)
+            {
+                reg = ((reg << 1) | 0x01) & 0xff;
+            }
+            else
+            {
+                reg = (reg << 1) & 0xff;
+            }
+            F_CARRY = rc;
+            F_HALF = false;
+            F_NEG = false;
+            F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & (int)flags.S) != 0;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            return (byte)reg;
+        }
+
+        //Rotate right register (RL r)
+        public byte Rr_R(int reg)
+        {
+            bool rc = (reg & (int)flags.C) != 0;
+            int lsb = F & (int)flags.C; //save the lsb bit
+            if (lsb != 0)
+            {
+                reg = (reg >> 1) | 0x80;
+            }
+            else
+                reg = reg >> 1;
+            F_CARRY = rc;
+            F_HALF = false;
+            F_NEG = false;
+            F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            F_ZERO = reg == 0;
+            F_SIGN = (reg & (int)flags.S) != 0;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            return (byte)reg;
+        }
+
+
+
+        public void Rlca()
+        {
+            bool ac = (A & (int)flags.S) != 0; //save the msb bit
+            if (ac) {
+                A = (byte)(((A << 1) | (int)flags.C) & 0xff);
+            } else {
+                A = (byte)((A << 1) & 0xff);
+            }
+
+            F_3 = (A & (int)flags.n3) != 0;
+            F_5 = (A & (int)flags.n5) != 0;
+            F_CARRY = ac;
+            F_HALF = false;
+            F_NEG = false;
+        }
+        public void Rrca()
+        {
+
+            bool ac = (A & (int)flags.C) != 0; //save the lsb bit
+            if (ac) {
+                A = (byte)((A >> 1) | (int)flags.S);
+            } else {
+                A = (byte)(A >> 1);
+            }
+            F_3 = (A & (int)flags.n3) != 0;
+            F_5 = (A & (int)flags.n5) != 0;
+            F_CARRY = ac;
+            F_HALF = false;
+            F_NEG = false;
+        }
+
+        public void Rla()
+        {
+            bool ac = ((A & (int)flags.S) != 0);
+            int msb = F & (int)flags.C;
+
+            if (msb != 0) {
+                A = (byte)(((A << 1) | (int)flags.C));
+            } else {
+                A = (byte)((A << 1));
+            }
+            F_3 = (A & (int)flags.n3) != 0;
+            F_5 = (A & (int)flags.n5) != 0;
+            F_CARRY = ac;
+            F_HALF = false;
+            F_NEG = false;
+        }
+
+        public void Rra()
+        {
+            bool ac = (A & (int)flags.C) != 0; //save the lsb bit
+            int lsb = F & (int)flags.C;
+
+            if (lsb != 0) {
+                A = (byte)((A >> 1) | (int)flags.S);
+            } else {
+                A = (byte)(A >> 1);
+            }
+            F_3 = (A & (int)flags.n3) != 0;
+            F_5 = (A & (int)flags.n5) != 0;
+            F_CARRY = ac;
+            F_HALF = false;
+            F_NEG = false;
+        }
+
+        public void Bit_R(int b, int reg)
+        {
+            bool bitset = ((reg & (1 << b)) != 0);  //true if bit is set
+            F_ZERO = !bitset;                       //true if bit is not set, false if bit is set
+            F_PARITY = !bitset;                     //copy of Z
+            F_NEG = false;
+            F_HALF = true;
+            F_SIGN = (b == 7) ? bitset : false;
+            F_3 = (reg & (int)flags.n3) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
+            F = (byte)((F & (int)flags.C) | (int)flags.H | (reg & ((int)flags.n3 | (int)flags.n5)));
+            if (!((reg & (0x01 << (b))) > 0)) F |= (int)flags.P | (int)flags.Z;
+            if ((b == 7) && ((reg & 0x80) > 0)) F |= (int)flags.S;
+        }
+
+        //Reset bit operation (RES b, r)
+        public byte Res_R(int b, int reg)
+        {
+            reg = reg & ~(1 << b);
+            return (byte)reg;
+        }
+
+        //Set bit operation (SET b, r)
+        public byte Set_R(int b, int reg)
+        {
+            reg = reg | (1 << b);
+            return (byte)reg;
+        }
     }
+
 }

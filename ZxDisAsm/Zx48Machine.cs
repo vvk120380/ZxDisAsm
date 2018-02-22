@@ -11,6 +11,9 @@ namespace ZxDisAsm
         byte opcode;
         byte tmp8;
         ushort tmp16;
+        byte val8;
+        byte code8;
+        ushort addr16;
 
         public Zx48Machine()
         {
@@ -343,7 +346,42 @@ namespace ZxDisAsm
                 case 0xC1: { BC = PopStack(); break; } //POP BC
                 case 0xD1: { DE = PopStack(); break; } //POP DE
                 case 0xE1: { HL = PopStack(); break; } //POP HL
+                //Команды системного вызова
+                case 0xC7: { PushStack(PC); PC = 0x00; break; } //RST #0
+                case 0xCF: { PushStack(PC); PC = 0x08; break; } //RST #8
+                case 0xD7: { PushStack(PC); PC = 0x10; break; } //RST #10
+                case 0xDF: { PushStack(PC); PC = 0x18; break; } //RST #18
+                case 0xE7: { PushStack(PC); PC = 0x20; break; } //RST #20
+                case 0xEF: { PushStack(PC); PC = 0x28; break; } //RST #28
+                case 0xF7: { PushStack(PC); PC = 0x30; break; } //RST #30
+                case 0xFF: { PushStack(PC); PC = 0x38; break; } //RST #38
+                //Команда безусловного вызова по непосредственному адресу
+                case 0xCD: { PushStack(PC+2); PC = next16(); break; } //CALL NN
+                //Команды условного вызова по непосредственному адресу
+                case 0xC4: { if (!F_ZERO)   { PushStack(PC + 2); PC = next16(); } else PC += 2; break; } //CALL NZ,NN
+                case 0xCC: { if (F_ZERO)    { PushStack(PC + 2); PC = next16(); } else PC += 2; break; } //CALL Z,NN
+                case 0xD4: { if (!F_CARRY)  { PushStack(PC + 2); PC = next16(); } else PC += 2; break; } //CALL NC,NN
+                case 0xDC: { if (F_CARRY)   { PushStack(PC + 2); PC = next16(); } else PC += 2; break; } //CALL C,NN
+                case 0xE4: { if (!F_PARITY) { PushStack(PC + 2); PC = next16(); } else PC += 2; break; } //CALL PO,NN
+                case 0xEC: { if (F_PARITY)  { PushStack(PC + 2); PC = next16(); } else PC += 2; break; } //CALL PM,NN
+                case 0xF4: { if (!F_SIGN)   { PushStack(PC + 2); PC = next16(); } else PC += 2; break; } //CALL P,NN
+                case 0xFC: { if (F_SIGN)    { PushStack(PC + 2); PC = next16(); } else PC += 2; break; } //CALL M,NN
+                //Команды безусловного возврата
+                case 0xC9: { PC = PopStack(); break; } //RET
+                //Команды условного возврата
+                case 0xC0: { if (!F_ZERO)   PC = PopStack(); break; } //RET NZ
+                case 0xC8: { if (F_ZERO)    PC = PopStack(); break; } //RET Z
+                case 0xD0: { if (!F_CARRY)  PC = PopStack(); break; } //RET NC
+                case 0xD8: { if (F_CARRY)   PC = PopStack(); break; } //RET C
+                case 0xE0: { if (!F_PARITY) PC = PopStack(); break; } //RET PO
+                case 0xE8: { if (F_PARITY)  PC = PopStack(); break; } //RET PM
+                case 0xF0: { if (!F_SIGN)   PC = PopStack(); break; } //RET P
+                case 0xF8: { if (F_SIGN)    PC = PopStack(); break; } //RET M
 
+                case 0x07: { Rlca(); break; } //RLCA                   
+                case 0x0F: { Rrca(); break; } //RRCA
+                case 0x17: { Rla();  break; } //RLA
+                case 0x1F: { Rra();  break; } //RRA
 
                 case 0xDD:
                     {
@@ -471,6 +509,240 @@ namespace ZxDisAsm
                             case 0xE5: { PushStack(IX); break; }  //PUSH IX
                             //Команды снятия значения 16-битной регистровой пары со стека
                             case 0xE1: { IX = PopStack(); break; } //POP IX
+                            
+                            case 0xCB:
+                                {
+                                    val8 = next8();
+                                    code8 = next8();
+                                    switch (code8)
+                                    {
+                                        //Команды логического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x3E: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Srl_R(peek8(addr16))); break;} //SRL(IX + s)
+                                        //Сложные команды логического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x3F: { A = Srl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRL A,(IX + s)
+                                        case 0x38: { B = Srl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRL B,(IX + s)
+                                        case 0x39: { C = Srl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRL C,(IX + s)
+                                        case 0x3A: { D = Srl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRL D,(IX + s)
+                                        case 0x3B: { E = Srl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRL E,(IX + s)
+                                        case 0x3C: { H = Srl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRL H,(IX + s)
+                                        case 0x3D: { L = Srl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRL L,(IX + s)
+                                        //Команды арифметического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x2E: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Sra_R(peek8(addr16))); break; } //SRA(IX + s)
+                                        //Сложные команды арифметического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x2F: { A = Sra_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRA A,(IX + s)
+                                        case 0x28: { B = Sra_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRA B,(IX + s)
+                                        case 0x29: { C = Sra_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRA C,(IX + s)
+                                        case 0x2A: { D = Sra_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRA D,(IX + s)
+                                        case 0x2B: { E = Sra_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRA E,(IX + s)
+                                        case 0x2C: { H = Sra_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRA H,(IX + s)
+                                        case 0x2D: { L = Sra_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SRA L,(IX + s)
+                                        //Команды логического сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x26: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Sla_R(peek8(addr16))); break; } //SLA(IX + s)
+                                        //Сложные команды логического сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x27: { A = Sla_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLA A,(IX + s)
+                                        case 0x20: { B = Sla_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLA B,(IX + s)
+                                        case 0x21: { C = Sla_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLA C,(IX + s)
+                                        case 0x22: { D = Sla_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLA D,(IX + s)
+                                        case 0x23: { E = Sla_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLA E,(IX + s)
+                                        case 0x24: { H = Sla_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLA H,(IX + s)
+                                        case 0x25: { L = Sla_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLA L,(IX + s)
+                                        //Команды логического сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x36: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Sli_R(peek8(addr16))); break; } //SLI(IX + s)
+                                        //Сложные команды логического сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x37: { A = Sli_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLI A,(IX + s)
+                                        case 0x30: { B = Sli_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLI B,(IX + s)
+                                        case 0x31: { C = Sli_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLI C,(IX + s)
+                                        case 0x32: { D = Sli_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLI D,(IX + s)
+                                        case 0x33: { E = Sli_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLI E,(IX + s)
+                                        case 0x34: { H = Sli_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLI H,(IX + s)
+                                        case 0x35: { L = Sli_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //SLI L,(IX + s)
+                                        //Команды расширенного сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x16: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Rl_R(peek8(addr16))); break; } //RL(IX + s)
+                                        //Сложные команды расширенного сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x17: { A = Rl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RL A,(IX + s)
+                                        case 0x10: { B = Rl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RL B,(IX + s)
+                                        case 0x11: { C = Rl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RL C,(IX + s)
+                                        case 0x12: { D = Rl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RL D,(IX + s)
+                                        case 0x13: { E = Rl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RL E,(IX + s)
+                                        case 0x14: { H = Rl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RL H,(IX + s)
+                                        case 0x15: { L = Rl_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RL L,(IX + s)
+                                        //Команды расширенного сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x1E: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Rr_R(peek8(addr16))); break; } //RR(IX + s)
+                                        //Сложные команды расширенного сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x1F: { A = Rr_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RR A,(IX + s)
+                                        case 0x18: { B = Rr_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RR B,(IX + s)
+                                        case 0x19: { C = Rr_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RR C,(IX + s)
+                                        case 0x1A: { D = Rr_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RR D,(IX + s)
+                                        case 0x1B: { E = Rr_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RR E,(IX + s)
+                                        case 0x1C: { H = Rr_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RR H,(IX + s)
+                                        case 0x1D: { L = Rr_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RR L,(IX + s)
+                                        //Команды расширенного сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x06: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Rlc_R(peek8(addr16))); break; } //RLC(IX + s)
+                                        //Сложные команды расширенного сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x07: { A = Rlc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RLC A,(IX + s)
+                                        case 0x00: { B = Rlc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RLC B,(IX + s)
+                                        case 0x01: { C = Rlc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RLC C,(IX + s)
+                                        case 0x02: { D = Rlc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RLC D,(IX + s)
+                                        case 0x03: { E = Rlc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RLC E,(IX + s)
+                                        case 0x04: { H = Rlc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RLC H,(IX + s)
+                                        case 0x05: { L = Rlc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RLC L,(IX + s)
+                                        //Команды циклического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x0E: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Rrc_R(peek8(addr16))); break; } //RRC(IX + s)
+                                        //Сложные команды циклического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x0F: { A = Rrc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RRC A,(IX + s)
+                                        case 0x08: { B = Rrc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RRC B,(IX + s)
+                                        case 0x09: { C = Rrc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RRC C,(IX + s)
+                                        case 0x0A: { D = Rrc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RRC D,(IX + s)
+                                        case 0x0B: { E = Rrc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RRC E,(IX + s)
+                                        case 0x0C: { H = Rrc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RRC H,(IX + s)
+                                        case 0x0D: { L = Rrc_R(peek8((ushort)(IX + GetDisplacement(val8)))); break; } //RRC L,(IX + s)
+                                        //Команды установки бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0xC6: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Set_R(0, peek8(addr16))); break; } // SET 0,(IX+s)
+                                        case 0xCE: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Set_R(1, peek8(addr16))); break; } // SET 1,(IX+s)
+                                        case 0xD6: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Set_R(2, peek8(addr16))); break; } // SET 2,(IX+s)
+                                        case 0xDE: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Set_R(3, peek8(addr16))); break; } // SET 3,(IX+s)
+                                        case 0xE6: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Set_R(4, peek8(addr16))); break; } // SET 4,(IX+s)
+                                        case 0xEE: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Set_R(5, peek8(addr16))); break; } // SET 5,(IX+s)
+                                        case 0xF6: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Set_R(6, peek8(addr16))); break; } // SET 6,(IX+s)
+                                        case 0xFE: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Set_R(7, peek8(addr16))); break; } // SET 7,(IX+s)
+                                        //Сложные команды установки бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0xC7: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Set_R(0, peek8(addr16)); break; } // SET 0, A, (IX+s)
+                                        case 0xCF: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Set_R(1, peek8(addr16)); break; } // SET 1, A, (IX+s)
+                                        case 0xD7: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Set_R(2, peek8(addr16)); break; } // SET 2, A, (IX+s)
+                                        case 0xDF: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Set_R(3, peek8(addr16)); break; } // SET 3, A, (IX+s)
+                                        case 0xE7: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Set_R(4, peek8(addr16)); break; } // SET 4, A, (IX+s)
+                                        case 0xEF: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Set_R(5, peek8(addr16)); break; } // SET 5, A, (IX+s)
+                                        case 0xF7: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Set_R(6, peek8(addr16)); break; } // SET 6, A, (IX+s)
+                                        case 0xFF: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Set_R(7, peek8(addr16)); break; } // SET 7, A, (IX+s)
+                                        case 0xC0: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Set_R(0, peek8(addr16)); break; } // SET 0, B, (IX+s)
+                                        case 0xC8: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Set_R(1, peek8(addr16)); break; } // SET 1, B, (IX+s)
+                                        case 0xD0: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Set_R(2, peek8(addr16)); break; } // SET 2, B, (IX+s)
+                                        case 0xD8: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Set_R(3, peek8(addr16)); break; } // SET 3, B, (IX+s)
+                                        case 0xE0: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Set_R(4, peek8(addr16)); break; } // SET 4, B, (IX+s)
+                                        case 0xE8: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Set_R(5, peek8(addr16)); break; } // SET 5, B, (IX+s)
+                                        case 0xF0: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Set_R(6, peek8(addr16)); break; } // SET 6, B, (IX+s)
+                                        case 0xF8: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Set_R(7, peek8(addr16)); break; } // SET 7, B, (IX+s)
+                                        case 0xC1: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Set_R(0, peek8(addr16)); break; } // SET 0, C, (IX+s)
+                                        case 0xC9: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Set_R(1, peek8(addr16)); break; } // SET 1, C, (IX+s)
+                                        case 0xD1: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Set_R(2, peek8(addr16)); break; } // SET 2, C, (IX+s)
+                                        case 0xD9: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Set_R(3, peek8(addr16)); break; } // SET 3, C, (IX+s)
+                                        case 0xE1: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Set_R(4, peek8(addr16)); break; } // SET 4, C, (IX+s)
+                                        case 0xE9: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Set_R(5, peek8(addr16)); break; } // SET 5, C, (IX+s)
+                                        case 0xF1: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Set_R(6, peek8(addr16)); break; } // SET 6, C, (IX+s)
+                                        case 0xF9: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Set_R(7, peek8(addr16)); break; } // SET 7, C, (IX+s)
+                                        case 0xC2: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Set_R(0, peek8(addr16)); break; } // SET 0, D, (IX+s)
+                                        case 0xCA: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Set_R(1, peek8(addr16)); break; } // SET 1, D, (IX+s)
+                                        case 0xD2: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Set_R(2, peek8(addr16)); break; } // SET 2, D, (IX+s)
+                                        case 0xDA: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Set_R(3, peek8(addr16)); break; } // SET 3, D, (IX+s)
+                                        case 0xE2: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Set_R(4, peek8(addr16)); break; } // SET 4, D, (IX+s)
+                                        case 0xEA: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Set_R(5, peek8(addr16)); break; } // SET 5, D, (IX+s)
+                                        case 0xF2: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Set_R(6, peek8(addr16)); break; } // SET 6, D, (IX+s)
+                                        case 0xFA: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Set_R(7, peek8(addr16)); break; } // SET 7, D, (IX+s)
+                                        case 0xC3: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Set_R(0, peek8(addr16)); break; } // SET 0, E, (IX+s)
+                                        case 0xCB: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Set_R(1, peek8(addr16)); break; } // SET 1, E, (IX+s)
+                                        case 0xD3: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Set_R(2, peek8(addr16)); break; } // SET 2, E, (IX+s)
+                                        case 0xDB: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Set_R(3, peek8(addr16)); break; } // SET 3, E, (IX+s)
+                                        case 0xE3: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Set_R(4, peek8(addr16)); break; } // SET 4, E, (IX+s)
+                                        case 0xEB: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Set_R(5, peek8(addr16)); break; } // SET 5, E, (IX+s)
+                                        case 0xF3: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Set_R(6, peek8(addr16)); break; } // SET 6, E, (IX+s)
+                                        case 0xFB: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Set_R(7, peek8(addr16)); break; } // SET 7, E, (IX+s)
+                                        case 0xC4: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Set_R(0, peek8(addr16)); break; } // SET 0, H, (IX+s)
+                                        case 0xCC: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Set_R(1, peek8(addr16)); break; } // SET 1, H, (IX+s)
+                                        case 0xD4: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Set_R(2, peek8(addr16)); break; } // SET 2, H, (IX+s)
+                                        case 0xDC: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Set_R(3, peek8(addr16)); break; } // SET 3, H, (IX+s)
+                                        case 0xE4: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Set_R(4, peek8(addr16)); break; } // SET 4, H, (IX+s)
+                                        case 0xEC: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Set_R(5, peek8(addr16)); break; } // SET 5, H, (IX+s)
+                                        case 0xF4: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Set_R(6, peek8(addr16)); break; } // SET 6, H, (IX+s)
+                                        case 0xFC: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Set_R(7, peek8(addr16)); break; } // SET 7, H, (IX+s)
+                                        case 0xC5: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Set_R(0, peek8(addr16)); break; } // SET 0, L, (IX+s)
+                                        case 0xCD: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Set_R(1, peek8(addr16)); break; } // SET 1, L, (IX+s)
+                                        case 0xD5: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Set_R(2, peek8(addr16)); break; } // SET 2, L, (IX+s)
+                                        case 0xDD: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Set_R(3, peek8(addr16)); break; } // SET 3, L, (IX+s)
+                                        case 0xE5: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Set_R(4, peek8(addr16)); break; } // SET 4, L, (IX+s)
+                                        case 0xED: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Set_R(5, peek8(addr16)); break; } // SET 5, L, (IX+s)
+                                        case 0xF5: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Set_R(6, peek8(addr16)); break; } // SET 6, L, (IX+s)
+                                        case 0xFD: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Set_R(7, peek8(addr16)); break; } // SET 7, L, (IX+s)
+                                        //Команды сброса бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x86: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Res_R(0, peek8(addr16))); break; } // RES 0,(IX+s)
+                                        case 0x8E: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Res_R(1, peek8(addr16))); break; } // RES 1,(IX+s)
+                                        case 0x96: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Res_R(2, peek8(addr16))); break; } // RES 2,(IX+s)
+                                        case 0x9E: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Res_R(3, peek8(addr16))); break; } // RES 3,(IX+s)
+                                        case 0xA6: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Res_R(4, peek8(addr16))); break; } // RES 4,(IX+s)
+                                        case 0xAE: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Res_R(5, peek8(addr16))); break; } // RES 5,(IX+s)
+                                        case 0xB6: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Res_R(6, peek8(addr16))); break; } // RES 6,(IX+s)
+                                        case 0xBE: { addr16 = (ushort)(IX + GetDisplacement(val8)); poke8(addr16, Res_R(7, peek8(addr16))); break; } // RES 7,(IX+s)
+                                        //Сложные команды сброса бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x87: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Res_R(0, peek8(addr16)); break; } // RES 0, A, (IX+s)
+                                        case 0x8F: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Res_R(1, peek8(addr16)); break; } // RES 1, A, (IX+s)
+                                        case 0x97: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Res_R(2, peek8(addr16)); break; } // RES 2, A, (IX+s)
+                                        case 0x9F: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Res_R(3, peek8(addr16)); break; } // RES 3, A, (IX+s)
+                                        case 0xA7: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Res_R(4, peek8(addr16)); break; } // RES 4, A, (IX+s)
+                                        case 0xAF: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Res_R(5, peek8(addr16)); break; } // RES 5, A, (IX+s)
+                                        case 0xB7: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Res_R(6, peek8(addr16)); break; } // RES 6, A, (IX+s)
+                                        case 0xBF: { addr16 = (ushort)(IX + GetDisplacement(val8)); A = Res_R(7, peek8(addr16)); break; } // RES 7, A, (IX+s)
+                                        case 0x80: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Res_R(0, peek8(addr16)); break; } // RES 0, B, (IX+s)
+                                        case 0x88: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Res_R(1, peek8(addr16)); break; } // RES 1, B, (IX+s)
+                                        case 0x90: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Res_R(2, peek8(addr16)); break; } // RES 2, B, (IX+s)
+                                        case 0x98: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Res_R(3, peek8(addr16)); break; } // RES 3, B, (IX+s)
+                                        case 0xA0: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Res_R(4, peek8(addr16)); break; } // RES 4, B, (IX+s)
+                                        case 0xA8: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Res_R(5, peek8(addr16)); break; } // RES 5, B, (IX+s)
+                                        case 0xB0: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Res_R(6, peek8(addr16)); break; } // RES 6, B, (IX+s)
+                                        case 0xB8: { addr16 = (ushort)(IX + GetDisplacement(val8)); B = Res_R(7, peek8(addr16)); break; } // RES 7, B, (IX+s)
+                                        case 0x81: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Res_R(0, peek8(addr16)); break; } // RES 0, C, (IX+s)
+                                        case 0x89: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Res_R(1, peek8(addr16)); break; } // RES 1, C, (IX+s)
+                                        case 0x91: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Res_R(2, peek8(addr16)); break; } // RES 2, C, (IX+s)
+                                        case 0x99: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Res_R(3, peek8(addr16)); break; } // RES 3, C, (IX+s)
+                                        case 0xA1: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Res_R(4, peek8(addr16)); break; } // RES 4, C, (IX+s)
+                                        case 0xA9: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Res_R(5, peek8(addr16)); break; } // RES 5, C, (IX+s)
+                                        case 0xB1: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Res_R(6, peek8(addr16)); break; } // RES 6, C, (IX+s)
+                                        case 0xB9: { addr16 = (ushort)(IX + GetDisplacement(val8)); C = Res_R(7, peek8(addr16)); break; } // RES 7, C, (IX+s)
+                                        case 0x82: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Res_R(0, peek8(addr16)); break; } // RES 0, D, (IX+s)
+                                        case 0x8A: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Res_R(1, peek8(addr16)); break; } // RES 1, D, (IX+s)
+                                        case 0x92: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Res_R(2, peek8(addr16)); break; } // RES 2, D, (IX+s)
+                                        case 0x9A: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Res_R(3, peek8(addr16)); break; } // RES 3, D, (IX+s)
+                                        case 0xA2: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Res_R(4, peek8(addr16)); break; } // RES 4, D, (IX+s)
+                                        case 0xAA: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Res_R(5, peek8(addr16)); break; } // RES 5, D, (IX+s)
+                                        case 0xB2: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Res_R(6, peek8(addr16)); break; } // RES 6, D, (IX+s)
+                                        case 0xBA: { addr16 = (ushort)(IX + GetDisplacement(val8)); D = Res_R(7, peek8(addr16)); break; } // RES 7, D, (IX+s)
+                                        case 0x83: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Res_R(0, peek8(addr16)); break; } // RES 0, E, (IX+s)
+                                        case 0x8B: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Res_R(1, peek8(addr16)); break; } // RES 1, E, (IX+s)
+                                        case 0x93: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Res_R(2, peek8(addr16)); break; } // RES 2, E, (IX+s)
+                                        case 0x9B: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Res_R(3, peek8(addr16)); break; } // RES 3, E, (IX+s)
+                                        case 0xA3: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Res_R(4, peek8(addr16)); break; } // RES 4, E, (IX+s)
+                                        case 0xAB: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Res_R(5, peek8(addr16)); break; } // RES 5, E, (IX+s)
+                                        case 0xB3: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Res_R(6, peek8(addr16)); break; } // RES 6, E, (IX+s)
+                                        case 0xBB: { addr16 = (ushort)(IX + GetDisplacement(val8)); E = Res_R(7, peek8(addr16)); break; } // RES 7, E, (IX+s)
+                                        case 0x84: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Res_R(0, peek8(addr16)); break; } // RES 0, H, (IX+s)
+                                        case 0x8C: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Res_R(1, peek8(addr16)); break; } // RES 1, H, (IX+s)
+                                        case 0x94: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Res_R(2, peek8(addr16)); break; } // RES 2, H, (IX+s)
+                                        case 0x9C: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Res_R(3, peek8(addr16)); break; } // RES 3, H, (IX+s)
+                                        case 0xA4: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Res_R(4, peek8(addr16)); break; } // RES 4, H, (IX+s)
+                                        case 0xAC: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Res_R(5, peek8(addr16)); break; } // RES 5, H, (IX+s)
+                                        case 0xB4: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Res_R(6, peek8(addr16)); break; } // RES 6, H, (IX+s)
+                                        case 0xBC: { addr16 = (ushort)(IX + GetDisplacement(val8)); H = Res_R(7, peek8(addr16)); break; } // RES 7, H, (IX+s)
+                                        case 0x85: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Res_R(0, peek8(addr16)); break; } // RES 0, L, (IX+s)
+                                        case 0x8D: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Res_R(1, peek8(addr16)); break; } // RES 1, L, (IX+s)
+                                        case 0x95: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Res_R(2, peek8(addr16)); break; } // RES 2, L, (IX+s)
+                                        case 0x9D: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Res_R(3, peek8(addr16)); break; } // RES 3, L, (IX+s)
+                                        case 0xA5: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Res_R(4, peek8(addr16)); break; } // RES 4, L, (IX+s)
+                                        case 0xAD: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Res_R(5, peek8(addr16)); break; } // RES 5, L, (IX+s)
+                                        case 0xB5: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Res_R(6, peek8(addr16)); break; } // RES 6, L, (IX+s)
+                                        case 0xBD: { addr16 = (ushort)(IX + GetDisplacement(val8)); L = Res_R(7, peek8(addr16)); break; } // RES 7, L, (IX+s)
+                                        //Команды проверки бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x46: { Bit_R(0, peek8((ushort)(IX + GetDisplacement(val8)))); break; } // BIT 0,(IX+s)
+                                        case 0x4E: { Bit_R(1, peek8((ushort)(IX + GetDisplacement(val8)))); break; } // BIT 1,(IX+s)
+                                        case 0x56: { Bit_R(2, peek8((ushort)(IX + GetDisplacement(val8)))); break; } // BIT 2,(IX+s)
+                                        case 0x5E: { Bit_R(3, peek8((ushort)(IX + GetDisplacement(val8)))); break; } // BIT 3,(IX+s)
+                                        case 0x66: { Bit_R(4, peek8((ushort)(IX + GetDisplacement(val8)))); break; } // BIT 4,(IX+s)
+                                        case 0x6E: { Bit_R(5, peek8((ushort)(IX + GetDisplacement(val8)))); break; } // BIT 5,(IX+s)
+                                        case 0x76: { Bit_R(6, peek8((ushort)(IX + GetDisplacement(val8)))); break; } // BIT 6,(IX+s)
+                                        case 0x7E: { Bit_R(7, peek8((ushort)(IX + GetDisplacement(val8)))); break; } // BIT 7,(IX+s)
+
+
+                                    }
+                                    break;
+                                }
+
                         }
                         break;
                     }
@@ -601,6 +873,239 @@ namespace ZxDisAsm
                             case 0xE5: { PushStack(IY); break; }  //PUSH IY
                             //Команды снятия значения 16-битной регистровой пары со стека
                             case 0xE1: { IY = PopStack(); break; } //POP IY
+
+                            case 0xCB:
+                                {
+                                    val8 = next8();
+                                    code8 = next8();
+                                    switch (code8)
+                                    {
+                                        //Команды логического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x3E: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Srl_R(peek8(addr16))); break; } // SRL (IY+s)
+                                        //Сложные команды логического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x3F: { A = Srl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRL A,(IY + s)
+                                        case 0x38: { B = Srl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRL B,(IY + s)
+                                        case 0x39: { C = Srl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRL C,(IY + s)
+                                        case 0x3A: { D = Srl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRL D,(IY + s)
+                                        case 0x3B: { E = Srl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRL E,(IY + s)
+                                        case 0x3C: { H = Srl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRL H,(IY + s)
+                                        case 0x3D: { L = Srl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRL L,(IY + s)
+                                        //Команды арифметического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x2E: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Sra_R(peek8(addr16))); break; } //SRA(IY + s)
+                                        //Сложные команды арифметического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x2F: { A = Sra_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRA A,(IY + s)
+                                        case 0x28: { B = Sra_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRA B,(IY + s)
+                                        case 0x29: { C = Sra_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRA C,(IY + s)
+                                        case 0x2A: { D = Sra_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRA D,(IY + s)
+                                        case 0x2B: { E = Sra_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRA E,(IY + s)
+                                        case 0x2C: { H = Sra_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRA H,(IY + s)
+                                        case 0x2D: { L = Sra_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SRA L,(IY + s)
+                                        //Команды логического сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x26: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Sla_R(peek8(addr16))); break; } //SLA(IY + s)
+                                        //Сложные команды логического сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x27: { A = Sla_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLA A,(IY + s)
+                                        case 0x20: { B = Sla_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLA B,(IY + s)
+                                        case 0x21: { C = Sla_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLA C,(IY + s)
+                                        case 0x22: { D = Sla_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLA D,(IY + s)
+                                        case 0x23: { E = Sla_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLA E,(IY + s)
+                                        case 0x24: { H = Sla_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLA H,(IY + s)
+                                        case 0x25: { L = Sla_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLA L,(IY + s)
+                                        //Команды логического сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x36: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Sli_R(peek8(addr16))); break; } //SLI(IY + s)
+                                        //Сложные команды логического сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x37: { A = Sli_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLI A,(IY + s)
+                                        case 0x30: { B = Sli_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLI B,(IY + s)
+                                        case 0x31: { C = Sli_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLI C,(IY + s)
+                                        case 0x32: { D = Sli_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLI D,(IY + s)
+                                        case 0x33: { E = Sli_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLI E,(IY + s)
+                                        case 0x34: { H = Sli_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLI H,(IY + s)
+                                        case 0x35: { L = Sli_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //SLI L,(IY + s)
+                                        //Команды расширенного сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x16: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Rl_R(peek8(addr16))); break; } //RL(IY + s)
+                                        //Сложные команды расширенного сдвига влево 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x17: { A = Rl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RL A,(IY + s)
+                                        case 0x10: { B = Rl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RL B,(IY + s)
+                                        case 0x11: { C = Rl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RL C,(IY + s)
+                                        case 0x12: { D = Rl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RL D,(IY + s)
+                                        case 0x13: { E = Rl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RL E,(IY + s)
+                                        case 0x14: { H = Rl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RL H,(IY + s)
+                                        case 0x15: { L = Rl_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RL L,(IY + s)
+                                        //Команды расширенного сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x1E: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Rr_R(peek8(addr16))); break; } //RR(IY + s)
+                                        //Сложные команды расширенного сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x1F: { A = Rr_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RR A,(IY + s)
+                                        case 0x18: { B = Rr_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RR B,(IY + s)
+                                        case 0x19: { C = Rr_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RR C,(IY + s)
+                                        case 0x1A: { D = Rr_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RR D,(IY + s)
+                                        case 0x1B: { E = Rr_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RR E,(IY + s)
+                                        case 0x1C: { H = Rr_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RR H,(IY + s)
+                                        case 0x1D: { L = Rr_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RR L,(IY + s)
+                                        //Команды расширенного сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x06: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Rlc_R(peek8(addr16))); break; } //RLC(IY + s)
+                                        //Сложные команды расширенного сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x07: { A = Rlc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RLC A,(IY + s)
+                                        case 0x00: { B = Rlc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RLC B,(IY + s)
+                                        case 0x01: { C = Rlc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RLC C,(IY + s)
+                                        case 0x02: { D = Rlc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RLC D,(IY + s)
+                                        case 0x03: { E = Rlc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RLC E,(IY + s)
+                                        case 0x04: { H = Rlc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RLC H,(IY + s)
+                                        case 0x05: { L = Rlc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RLC L,(IY + s)
+                                        //Команды циклического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x0E: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Rrc_R(peek8(addr16))); break; } //RRC(IY + s)
+                                        //Сложные команды циклического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x0F: { A = Rrc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RRC A,(IY + s)
+                                        case 0x08: { B = Rrc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RRC B,(IY + s)
+                                        case 0x09: { C = Rrc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RRC C,(IY + s)
+                                        case 0x0A: { D = Rrc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RRC D,(IY + s)
+                                        case 0x0B: { E = Rrc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RRC E,(IY + s)
+                                        case 0x0C: { H = Rrc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RRC H,(IY + s)
+                                        case 0x0D: { L = Rrc_R(peek8((ushort)(IY + GetDisplacement(val8)))); break; } //RRC L,(IY + s)
+                                        //Команды установки бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0xC6: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Set_R(0, peek8(addr16))); break; } // SET 0,(IY+s)
+                                        case 0xCE: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Set_R(1, peek8(addr16))); break; } // SET 1,(IY+s)
+                                        case 0xD6: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Set_R(2, peek8(addr16))); break; } // SET 2,(IY+s)
+                                        case 0xDE: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Set_R(3, peek8(addr16))); break; } // SET 3,(IY+s)
+                                        case 0xE6: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Set_R(4, peek8(addr16))); break; } // SET 4,(IY+s)
+                                        case 0xEE: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Set_R(5, peek8(addr16))); break; } // SET 5,(IY+s)
+                                        case 0xF6: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Set_R(6, peek8(addr16))); break; } // SET 6,(IY+s)
+                                        case 0xFE: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Set_R(7, peek8(addr16))); break; } // SET 7,(IY+s)
+                                        //Сложные команды установки бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0xC7: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Set_R(0, peek8(addr16)); break; } // SET 0, A, (IY+s)
+                                        case 0xCF: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Set_R(1, peek8(addr16)); break; } // SET 1, A, (IY+s)
+                                        case 0xD7: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Set_R(2, peek8(addr16)); break; } // SET 2, A, (IY+s)
+                                        case 0xDF: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Set_R(3, peek8(addr16)); break; } // SET 3, A, (IY+s)
+                                        case 0xE7: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Set_R(4, peek8(addr16)); break; } // SET 4, A, (IY+s)
+                                        case 0xEF: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Set_R(5, peek8(addr16)); break; } // SET 5, A, (IY+s)
+                                        case 0xF7: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Set_R(6, peek8(addr16)); break; } // SET 6, A, (IY+s)
+                                        case 0xFF: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Set_R(7, peek8(addr16)); break; } // SET 7, A, (IY+s)
+                                        case 0xC0: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Set_R(0, peek8(addr16)); break; } // SET 0, B, (IY+s)
+                                        case 0xC8: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Set_R(1, peek8(addr16)); break; } // SET 1, B, (IY+s)
+                                        case 0xD0: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Set_R(2, peek8(addr16)); break; } // SET 2, B, (IY+s)
+                                        case 0xD8: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Set_R(3, peek8(addr16)); break; } // SET 3, B, (IY+s)
+                                        case 0xE0: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Set_R(4, peek8(addr16)); break; } // SET 4, B, (IY+s)
+                                        case 0xE8: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Set_R(5, peek8(addr16)); break; } // SET 5, B, (IY+s)
+                                        case 0xF0: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Set_R(6, peek8(addr16)); break; } // SET 6, B, (IY+s)
+                                        case 0xF8: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Set_R(7, peek8(addr16)); break; } // SET 7, B, (IY+s)
+                                        case 0xC1: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Set_R(0, peek8(addr16)); break; } // SET 0, C, (IY+s)
+                                        case 0xC9: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Set_R(1, peek8(addr16)); break; } // SET 1, C, (IY+s)
+                                        case 0xD1: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Set_R(2, peek8(addr16)); break; } // SET 2, C, (IY+s)
+                                        case 0xD9: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Set_R(3, peek8(addr16)); break; } // SET 3, C, (IY+s)
+                                        case 0xE1: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Set_R(4, peek8(addr16)); break; } // SET 4, C, (IY+s)
+                                        case 0xE9: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Set_R(5, peek8(addr16)); break; } // SET 5, C, (IY+s)
+                                        case 0xF1: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Set_R(6, peek8(addr16)); break; } // SET 6, C, (IY+s)
+                                        case 0xF9: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Set_R(7, peek8(addr16)); break; } // SET 7, C, (IY+s)
+                                        case 0xC2: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Set_R(0, peek8(addr16)); break; } // SET 0, D, (IY+s)
+                                        case 0xCA: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Set_R(1, peek8(addr16)); break; } // SET 1, D, (IY+s)
+                                        case 0xD2: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Set_R(2, peek8(addr16)); break; } // SET 2, D, (IY+s)
+                                        case 0xDA: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Set_R(3, peek8(addr16)); break; } // SET 3, D, (IY+s)
+                                        case 0xE2: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Set_R(4, peek8(addr16)); break; } // SET 4, D, (IY+s)
+                                        case 0xEA: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Set_R(5, peek8(addr16)); break; } // SET 5, D, (IY+s)
+                                        case 0xF2: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Set_R(6, peek8(addr16)); break; } // SET 6, D, (IY+s)
+                                        case 0xFA: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Set_R(7, peek8(addr16)); break; } // SET 7, D, (IY+s)
+                                        case 0xC3: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Set_R(0, peek8(addr16)); break; } // SET 0, E, (IY+s)
+                                        case 0xCB: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Set_R(1, peek8(addr16)); break; } // SET 1, E, (IY+s)
+                                        case 0xD3: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Set_R(2, peek8(addr16)); break; } // SET 2, E, (IY+s)
+                                        case 0xDB: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Set_R(3, peek8(addr16)); break; } // SET 3, E, (IY+s)
+                                        case 0xE3: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Set_R(4, peek8(addr16)); break; } // SET 4, E, (IY+s)
+                                        case 0xEB: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Set_R(5, peek8(addr16)); break; } // SET 5, E, (IY+s)
+                                        case 0xF3: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Set_R(6, peek8(addr16)); break; } // SET 6, E, (IY+s)
+                                        case 0xFB: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Set_R(7, peek8(addr16)); break; } // SET 7, E, (IY+s)
+                                        case 0xC4: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Set_R(0, peek8(addr16)); break; } // SET 0, H, (IY+s)
+                                        case 0xCC: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Set_R(1, peek8(addr16)); break; } // SET 1, H, (IY+s)
+                                        case 0xD4: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Set_R(2, peek8(addr16)); break; } // SET 2, H, (IY+s)
+                                        case 0xDC: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Set_R(3, peek8(addr16)); break; } // SET 3, H, (IY+s)
+                                        case 0xE4: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Set_R(4, peek8(addr16)); break; } // SET 4, H, (IY+s)
+                                        case 0xEC: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Set_R(5, peek8(addr16)); break; } // SET 5, H, (IY+s)
+                                        case 0xF4: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Set_R(6, peek8(addr16)); break; } // SET 6, H, (IY+s)
+                                        case 0xFC: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Set_R(7, peek8(addr16)); break; } // SET 7, H, (IY+s)
+                                        case 0xC5: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Set_R(0, peek8(addr16)); break; } // SET 0, L, (IY+s)
+                                        case 0xCD: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Set_R(1, peek8(addr16)); break; } // SET 1, L, (IY+s)
+                                        case 0xD5: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Set_R(2, peek8(addr16)); break; } // SET 2, L, (IY+s)
+                                        case 0xDD: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Set_R(3, peek8(addr16)); break; } // SET 3, L, (IY+s)
+                                        case 0xE5: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Set_R(4, peek8(addr16)); break; } // SET 4, L, (IY+s)
+                                        case 0xED: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Set_R(5, peek8(addr16)); break; } // SET 5, L, (IY+s)
+                                        case 0xF5: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Set_R(6, peek8(addr16)); break; } // SET 6, L, (IY+s)
+                                        case 0xFD: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Set_R(7, peek8(addr16)); break; } // SET 7, L, (IY+s)
+                                        //Команды сброса бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x86: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Res_R(0, peek8(addr16))); break; } // RES 0,(IY+s)
+                                        case 0x8E: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Res_R(1, peek8(addr16))); break; } // RES 1,(IY+s)
+                                        case 0x96: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Res_R(2, peek8(addr16))); break; } // RES 2,(IY+s)
+                                        case 0x9E: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Res_R(3, peek8(addr16))); break; } // RES 3,(IY+s)
+                                        case 0xA6: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Res_R(4, peek8(addr16))); break; } // RES 4,(IY+s)
+                                        case 0xAE: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Res_R(5, peek8(addr16))); break; } // RES 5,(IY+s)
+                                        case 0xB6: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Res_R(6, peek8(addr16))); break; } // RES 6,(IY+s)
+                                        case 0xBE: { addr16 = (ushort)(IY + GetDisplacement(val8)); poke8(addr16, Res_R(7, peek8(addr16))); break; } // RES 7,(IY+s)
+                                        //Сложные команды сброса бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением) с сохранением результата в 8-битном регистре
+                                        case 0x87: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Res_R(0, peek8(addr16)); break; } // RES 0, A, (IY+s)
+                                        case 0x8F: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Res_R(1, peek8(addr16)); break; } // RES 1, A, (IY+s)
+                                        case 0x97: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Res_R(2, peek8(addr16)); break; } // RES 2, A, (IY+s)
+                                        case 0x9F: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Res_R(3, peek8(addr16)); break; } // RES 3, A, (IY+s)
+                                        case 0xA7: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Res_R(4, peek8(addr16)); break; } // RES 4, A, (IY+s)
+                                        case 0xAF: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Res_R(5, peek8(addr16)); break; } // RES 5, A, (IY+s)
+                                        case 0xB7: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Res_R(6, peek8(addr16)); break; } // RES 6, A, (IY+s)
+                                        case 0xBF: { addr16 = (ushort)(IY + GetDisplacement(val8)); A = Res_R(7, peek8(addr16)); break; } // RES 7, A, (IY+s)
+                                        case 0x80: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Res_R(0, peek8(addr16)); break; } // RES 0, B, (IY+s)
+                                        case 0x88: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Res_R(1, peek8(addr16)); break; } // RES 1, B, (IY+s)
+                                        case 0x90: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Res_R(2, peek8(addr16)); break; } // RES 2, B, (IY+s)
+                                        case 0x98: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Res_R(3, peek8(addr16)); break; } // RES 3, B, (IY+s)
+                                        case 0xA0: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Res_R(4, peek8(addr16)); break; } // RES 4, B, (IY+s)
+                                        case 0xA8: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Res_R(5, peek8(addr16)); break; } // RES 5, B, (IY+s)
+                                        case 0xB0: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Res_R(6, peek8(addr16)); break; } // RES 6, B, (IY+s)
+                                        case 0xB8: { addr16 = (ushort)(IY + GetDisplacement(val8)); B = Res_R(7, peek8(addr16)); break; } // RES 7, B, (IY+s)
+                                        case 0x81: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Res_R(0, peek8(addr16)); break; } // RES 0, C, (IY+s)
+                                        case 0x89: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Res_R(1, peek8(addr16)); break; } // RES 1, C, (IY+s)
+                                        case 0x91: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Res_R(2, peek8(addr16)); break; } // RES 2, C, (IY+s)
+                                        case 0x99: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Res_R(3, peek8(addr16)); break; } // RES 3, C, (IY+s)
+                                        case 0xA1: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Res_R(4, peek8(addr16)); break; } // RES 4, C, (IY+s)
+                                        case 0xA9: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Res_R(5, peek8(addr16)); break; } // RES 5, C, (IY+s)
+                                        case 0xB1: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Res_R(6, peek8(addr16)); break; } // RES 6, C, (IY+s)
+                                        case 0xB9: { addr16 = (ushort)(IY + GetDisplacement(val8)); C = Res_R(7, peek8(addr16)); break; } // RES 7, C, (IY+s)
+                                        case 0x82: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Res_R(0, peek8(addr16)); break; } // RES 0, D, (IY+s)
+                                        case 0x8A: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Res_R(1, peek8(addr16)); break; } // RES 1, D, (IY+s)
+                                        case 0x92: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Res_R(2, peek8(addr16)); break; } // RES 2, D, (IY+s)
+                                        case 0x9A: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Res_R(3, peek8(addr16)); break; } // RES 3, D, (IY+s)
+                                        case 0xA2: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Res_R(4, peek8(addr16)); break; } // RES 4, D, (IY+s)
+                                        case 0xAA: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Res_R(5, peek8(addr16)); break; } // RES 5, D, (IY+s)
+                                        case 0xB2: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Res_R(6, peek8(addr16)); break; } // RES 6, D, (IY+s)
+                                        case 0xBA: { addr16 = (ushort)(IY + GetDisplacement(val8)); D = Res_R(7, peek8(addr16)); break; } // RES 7, D, (IY+s)
+                                        case 0x83: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Res_R(0, peek8(addr16)); break; } // RES 0, E, (IY+s)
+                                        case 0x8B: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Res_R(1, peek8(addr16)); break; } // RES 1, E, (IY+s)
+                                        case 0x93: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Res_R(2, peek8(addr16)); break; } // RES 2, E, (IY+s)
+                                        case 0x9B: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Res_R(3, peek8(addr16)); break; } // RES 3, E, (IY+s)
+                                        case 0xA3: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Res_R(4, peek8(addr16)); break; } // RES 4, E, (IY+s)
+                                        case 0xAB: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Res_R(5, peek8(addr16)); break; } // RES 5, E, (IY+s)
+                                        case 0xB3: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Res_R(6, peek8(addr16)); break; } // RES 6, E, (IY+s)
+                                        case 0xBB: { addr16 = (ushort)(IY + GetDisplacement(val8)); E = Res_R(7, peek8(addr16)); break; } // RES 7, E, (IY+s)
+                                        case 0x84: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Res_R(0, peek8(addr16)); break; } // RES 0, H, (IY+s)
+                                        case 0x8C: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Res_R(1, peek8(addr16)); break; } // RES 1, H, (IY+s)
+                                        case 0x94: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Res_R(2, peek8(addr16)); break; } // RES 2, H, (IY+s)
+                                        case 0x9C: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Res_R(3, peek8(addr16)); break; } // RES 3, H, (IY+s)
+                                        case 0xA4: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Res_R(4, peek8(addr16)); break; } // RES 4, H, (IY+s)
+                                        case 0xAC: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Res_R(5, peek8(addr16)); break; } // RES 5, H, (IY+s)
+                                        case 0xB4: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Res_R(6, peek8(addr16)); break; } // RES 6, H, (IY+s)
+                                        case 0xBC: { addr16 = (ushort)(IY + GetDisplacement(val8)); H = Res_R(7, peek8(addr16)); break; } // RES 7, H, (IY+s)
+                                        case 0x85: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Res_R(0, peek8(addr16)); break; } // RES 0, L, (IY+s)
+                                        case 0x8D: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Res_R(1, peek8(addr16)); break; } // RES 1, L, (IY+s)
+                                        case 0x95: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Res_R(2, peek8(addr16)); break; } // RES 2, L, (IY+s)
+                                        case 0x9D: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Res_R(3, peek8(addr16)); break; } // RES 3, L, (IY+s)
+                                        case 0xA5: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Res_R(4, peek8(addr16)); break; } // RES 4, L, (IY+s)
+                                        case 0xAD: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Res_R(5, peek8(addr16)); break; } // RES 5, L, (IY+s)
+                                        case 0xB5: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Res_R(6, peek8(addr16)); break; } // RES 6, L, (IY+s)
+                                        case 0xBD: { addr16 = (ushort)(IY + GetDisplacement(val8)); L = Res_R(7, peek8(addr16)); break; } // RES 7, L, (IY+s)
+                                        //Команды проверки бита внутри 8-битного значения в памяти по адресу в индексном регистре (со смещением)
+                                        case 0x46: { Bit_R(0, peek8((ushort)(IY + GetDisplacement(val8)))); break; } // BIT 0,(IY+s)
+                                        case 0x4E: { Bit_R(1, peek8((ushort)(IY + GetDisplacement(val8)))); break; } // BIT 1,(IY+s)
+                                        case 0x56: { Bit_R(2, peek8((ushort)(IY + GetDisplacement(val8)))); break; } // BIT 2,(IY+s)
+                                        case 0x5E: { Bit_R(3, peek8((ushort)(IY + GetDisplacement(val8)))); break; } // BIT 3,(IY+s)
+                                        case 0x66: { Bit_R(4, peek8((ushort)(IY + GetDisplacement(val8)))); break; } // BIT 4,(IY+s)
+                                        case 0x6E: { Bit_R(5, peek8((ushort)(IY + GetDisplacement(val8)))); break; } // BIT 5,(IY+s)
+                                        case 0x76: { Bit_R(6, peek8((ushort)(IY + GetDisplacement(val8)))); break; } // BIT 6,(IY+s)
+                                        case 0x7E: { Bit_R(7, peek8((ushort)(IY + GetDisplacement(val8)))); break; } // BIT 7,(IY+s)
+
+
+                                    }
+                                    break;
+                                }
                         }
                         break;
                     }
@@ -658,12 +1163,301 @@ namespace ZxDisAsm
                             case 0x62: { Sbc_RR(HL); break; } //SBC HL,HL
                             case 0x72: { Sbc_RR(SP); break; } //SBC HL,SP
 
+                        }
+                        break;
+                    }
+
+                case 0xCB:
+                    {
+                        opcode = next8();
+                        switch (opcode)
+                        {
+                            //Команды загрузки, использующие служебный 8-битный регистр в качестве одного из операндов
+                            case 0x3F: { A = Srl_R(A); break; } // SRL A
+                            case 0x38: { B = Srl_R(B); break; } // SRL B
+                            case 0x39: { C = Srl_R(C); break; } // SRL C
+                            case 0x3A: { D = Srl_R(D); break; } // SRL D
+                            case 0x3B: { E = Srl_R(E); break; } // SRL E
+                            case 0x3C: { H = Srl_R(H); break; } // SRL H
+                            case 0x3D: { L = Srl_R(L); break; } // SRL L
+                            //Команда логического сдвига вправо 8-битного значения в памяти по адресу в регистре HL
+                            case 0x3E: { poke8(HL, Srl_R(peek8(HL))); break; } // SRL (HL)
+                            //Команды арифметического сдвига вправо значения 8-битного регистра
+                            case 0x2F: { A = Sra_R(A); break; } // SRA A
+                            case 0x28: { B = Sra_R(B); break; } // SRA B
+                            case 0x29: { C = Sra_R(C); break; } // SRA C
+                            case 0x2A: { D = Sra_R(D); break; } // SRA D
+                            case 0x2B: { E = Sra_R(E); break; } // SRA E
+                            case 0x2C: { H = Sra_R(H); break; } // SRA H
+                            case 0x2D: { L = Sra_R(L); break; } // SRL L
+                            //Команда арифметического сдвига вправо 8-битного значения в памяти по адресу в регистре HL
+                            case 0x2E: { poke8(HL, Sra_R(peek8(HL))); break; } // SRA (HL)
+                            //Команды логического сдвига влево значения 8-битного регистра
+                            case 0x27: { A = Sla_R(A); break; } // SLA A
+                            case 0x20: { B = Sla_R(B); break; } // SLA B
+                            case 0x21: { C = Sla_R(C); break; } // SLA C
+                            case 0x22: { D = Sla_R(D); break; } // SLA D
+                            case 0x23: { E = Sla_R(E); break; } // SLA E
+                            case 0x24: { H = Sla_R(H); break; } // SLA H
+                            case 0x25: { L = Sla_R(L); break; } // SLA L
+                            //Команда логического сдвига влево 8-битного значения в памяти по адресу в регистре HL
+                            case 0x26: { poke8(HL, Sla_R(peek8(HL))); break; } // SLA (HL)
+                            //Команды логического сдвига влево с увеличением значения 8-битного регистра
+                            case 0x37: { A = Sli_R(A); break; } // SLI A
+                            case 0x30: { B = Sli_R(B); break; } // SLI B
+                            case 0x31: { C = Sli_R(C); break; } // SLI C
+                            case 0x32: { D = Sli_R(D); break; } // SLI D
+                            case 0x33: { E = Sli_R(E); break; } // SLI E
+                            case 0x34: { H = Sli_R(H); break; } // SLI H
+                            case 0x35: { L = Sli_R(L); break; } // SLI L
+                            //Команда логического сдвига влево с увеличением 8-битного значения в памяти по адресу в регистре HL
+                            case 0x36: { poke8(HL, Sli_R(peek8(HL))); break; } // SLI (HL)
+                            //Команды расширенного сдвига влево значения 8-битного регистра
+                            case 0x17: { A = Rl_R(A); break; } // RL A
+                            case 0x10: { B = Rl_R(B); break; } // RL B
+                            case 0x11: { C = Rl_R(C); break; } // RL C
+                            case 0x12: { D = Rl_R(D); break; } // RL D
+                            case 0x13: { E = Rl_R(E); break; } // RL E
+                            case 0x14: { H = Rl_R(H); break; } // RL H
+                            case 0x15: { L = Rl_R(L); break; } // RL L
+                            //Команда расширенного сдвига влево 8-битного значения в памяти по адресу в регистре HL
+                            case 0x16: { poke8(HL, Rl_R(peek8(HL))); break; } // RL (HL)
+                            //Команды расширенного сдвига вправо значения 8-битного регистра
+                            case 0x1F: { A = Rr_R(A); break; } // RR A
+                            case 0x18: { B = Rr_R(B); break; } // RR B
+                            case 0x19: { C = Rr_R(C); break; } // RR C
+                            case 0x1A: { D = Rr_R(D); break; } // RR D
+                            case 0x1B: { E = Rr_R(E); break; } // RR E
+                            case 0x1C: { H = Rr_R(H); break; } // RR H
+                            case 0x1D: { L = Rr_R(L); break; } // RR L
+                            //Команда расширенного сдвига вправо 8-битного значения в памяти по адресу в регистре HL
+                            case 0x1E: { poke8(HL, Rr_R(peek8(HL))); break; } // RR (HL)
+                            //Команды циклического сдвига влево значения 8-битного регистра
+                            case 0x07: { A = Rlc_R(A); break; } // RLC A
+                            case 0x00: { B = Rlc_R(B); break; } // RLC B
+                            case 0x01: { C = Rlc_R(C); break; } // RLC C
+                            case 0x02: { D = Rlc_R(D); break; } // RLC D
+                            case 0x03: { E = Rlc_R(E); break; } // RLC E
+                            case 0x04: { H = Rlc_R(H); break; } // RLC H
+                            case 0x05: { L = Rlc_R(L); break; } // RLC L
+                            //Команда циклического сдвига влево 8-битного значения в памяти по адресу в регистре HL
+                            case 0x06: { poke8(HL, Rlc_R(peek8(HL))); break; } // RLC (HL)
+                            //Команды циклического сдвига вправо значения 8-битного регистра
+                            case 0x0F: { A = Rrc_R(A); break; } // RRC A
+                            case 0x08: { B = Rrc_R(B); break; } // RRC B
+                            case 0x09: { C = Rrc_R(C); break; } // RRC C
+                            case 0x0A: { D = Rrc_R(D); break; } // RRC D
+                            case 0x0B: { E = Rrc_R(E); break; } // RRC E
+                            case 0x0C: { H = Rrc_R(H); break; } // RRC H
+                            case 0x0D: { L = Rrc_R(L); break; } // RRC L
+                            //Команда циклического сдвига вправо 8-битного значения в памяти по адресу в регистре HL
+                            case 0x0E: { poke8(HL, Rrc_R(peek8(HL))); break; } // RRC (HL)
+                            //Команды установки бита внутри 8 - битного регистра
+                            case 0xC7: { A = Set_R(0, A); break; } // SET 0,A
+                            case 0xCF: { A = Set_R(1, A); break; } // SET 1,A
+                            case 0xD7: { A = Set_R(2, A); break; } // SET 2,A
+                            case 0xDF: { A = Set_R(3, A); break; } // SET 3,A
+                            case 0xE7: { A = Set_R(4, A); break; } // SET 4,A
+                            case 0xEF: { A = Set_R(5, A); break; } // SET 5,A
+                            case 0xF7: { A = Set_R(6, A); break; } // SET 6,A
+                            case 0xFF: { A = Set_R(7, A); break; } // SET 7,A
+                            case 0xC0: { B = Set_R(0, B); break; } // SET 0,B
+                            case 0xC8: { B = Set_R(1, B); break; } // SET 1,B
+                            case 0xD0: { B = Set_R(2, B); break; } // SET 2,B
+                            case 0xD8: { B = Set_R(3, B); break; } // SET 3,B
+                            case 0xE0: { B = Set_R(4, B); break; } // SET 4,B
+                            case 0xE8: { B = Set_R(5, B); break; } // SET 5,B
+                            case 0xF0: { B = Set_R(6, B); break; } // SET 6,B
+                            case 0xF8: { B = Set_R(7, B); break; } // SET 7,B
+                            case 0xC1: { C = Set_R(0, C); break; } // SET 0,C
+                            case 0xC9: { C = Set_R(1, C); break; } // SET 1,C
+                            case 0xD1: { C = Set_R(2, C); break; } // SET 2,C
+                            case 0xD9: { C = Set_R(3, C); break; } // SET 3,C
+                            case 0xE1: { C = Set_R(4, C); break; } // SET 4,C
+                            case 0xE9: { C = Set_R(5, C); break; } // SET 5,C
+                            case 0xF1: { C = Set_R(6, C); break; } // SET 6,C
+                            case 0xF9: { C = Set_R(7, C); break; } // SET 7,C
+                            case 0xC2: { D = Set_R(0, D); break; } // SET 0,D
+                            case 0xCA: { D = Set_R(1, D); break; } // SET 1,D
+                            case 0xD2: { D = Set_R(2, D); break; } // SET 2,D
+                            case 0xDA: { D = Set_R(3, D); break; } // SET 3,D
+                            case 0xE2: { D = Set_R(4, D); break; } // SET 4,D
+                            case 0xEA: { D = Set_R(5, D); break; } // SET 5,D
+                            case 0xF2: { D = Set_R(6, D); break; } // SET 6,D
+                            case 0xFA: { D = Set_R(7, D); break; } // SET 7,D
+                            case 0xC3: { E = Set_R(0, E); break; } // SET 0,E
+                            case 0xCB: { E = Set_R(1, E); break; } // SET 1,E
+                            case 0xD3: { E = Set_R(2, E); break; } // SET 2,E
+                            case 0xDB: { E = Set_R(3, E); break; } // SET 3,E
+                            case 0xE3: { E = Set_R(4, E); break; } // SET 4,E
+                            case 0xEB: { E = Set_R(5, E); break; } // SET 5,E
+                            case 0xF3: { E = Set_R(6, E); break; } // SET 6,E
+                            case 0xFB: { E = Set_R(7, E); break; } // SET 7,E
+                            case 0xC4: { H = Set_R(0, H); break; } // SET 0,H
+                            case 0xCC: { H = Set_R(1, H); break; } // SET 1,H
+                            case 0xD4: { H = Set_R(2, H); break; } // SET 2,H
+                            case 0xDC: { H = Set_R(3, H); break; } // SET 3,H
+                            case 0xE4: { H = Set_R(4, H); break; } // SET 4,H
+                            case 0xEC: { H = Set_R(5, H); break; } // SET 5,H
+                            case 0xF4: { H = Set_R(6, H); break; } // SET 6,H
+                            case 0xFC: { H = Set_R(7, H); break; } // SET 7,H
+                            case 0xC5: { L = Set_R(0, L); break; } // SET 0,L
+                            case 0xCD: { L = Set_R(1, L); break; } // SET 1,L
+                            case 0xD5: { L = Set_R(2, L); break; } // SET 2,L
+                            case 0xDD: { L = Set_R(3, L); break; } // SET 3,L
+                            case 0xE5: { L = Set_R(4, L); break; } // SET 4,L
+                            case 0xED: { L = Set_R(5, L); break; } // SET 5,L
+                            case 0xF5: { L = Set_R(6, L); break; } // SET 6,L
+                            case 0xFD: { L = Set_R(7, L); break; } // SET 7,L
+                            //Команда установки бита внутри 8-битного значения в памяти по адресу в регистре HL
+                            case 0xC6: { poke8(HL, Set_R(0, peek8(HL))); break; } // SET 0,(HL)
+                            case 0xCE: { poke8(HL, Set_R(1, peek8(HL))); break; } // SET 1,(HL)
+                            case 0xD6: { poke8(HL, Set_R(2, peek8(HL))); break; } // SET 2,(HL)
+                            case 0xDE: { poke8(HL, Set_R(3, peek8(HL))); break; } // SET 3,(HL)
+                            case 0xE6: { poke8(HL, Set_R(4, peek8(HL))); break; } // SET 4,(HL)
+                            case 0xEE: { poke8(HL, Set_R(5, peek8(HL))); break; } // SET 5,(HL)
+                            case 0xF6: { poke8(HL, Set_R(6, peek8(HL))); break; } // SET 6,(HL)
+                            case 0xFE: { poke8(HL, Set_R(7, peek8(HL))); break; } // SET 7,(HL)
+                            //Команды сброса бита внутри 8-битного регистра
+                            case 0x87: { A = Res_R(0, A); break; } // RES 0,A
+                            case 0x8F: { A = Res_R(1, A); break; } // RES 1,A
+                            case 0x97: { A = Res_R(2, A); break; } // RES 2,A
+                            case 0x9F: { A = Res_R(3, A); break; } // RES 3,A
+                            case 0xA7: { A = Res_R(4, A); break; } // RES 4,A
+                            case 0xAF: { A = Res_R(5, A); break; } // RES 5,A
+                            case 0xB7: { A = Res_R(6, A); break; } // RES 6,A
+                            case 0xBF: { A = Res_R(7, A); break; } // RES 7,A
+                            case 0x80: { B = Res_R(0, B); break; } // RES 0,B
+                            case 0x88: { B = Res_R(1, B); break; } // RES 1,B
+                            case 0x90: { B = Res_R(2, B); break; } // RES 2,B
+                            case 0x98: { B = Res_R(3, B); break; } // RES 3,B
+                            case 0xA0: { B = Res_R(4, B); break; } // RES 4,B
+                            case 0xA8: { B = Res_R(5, B); break; } // RES 5,B
+                            case 0xB0: { B = Res_R(6, B); break; } // RES 6,B
+                            case 0xB8: { B = Res_R(7, B); break; } // RES 7,B
+                            case 0x81: { C = Res_R(0, C); break; } // RES 0,C
+                            case 0x89: { C = Res_R(1, C); break; } // RES 1,C
+                            case 0x91: { C = Res_R(2, C); break; } // RES 2,C
+                            case 0x99: { C = Res_R(3, C); break; } // RES 3,C
+                            case 0xA1: { C = Res_R(4, C); break; } // RES 4,C
+                            case 0xA9: { C = Res_R(5, C); break; } // RES 5,C
+                            case 0xB1: { C = Res_R(6, C); break; } // RES 6,C
+                            case 0xB9: { C = Res_R(7, C); break; } // RES 7,C
+                            case 0x82: { D = Res_R(0, D); break; } // RES 0,D
+                            case 0x8A: { D = Res_R(1, D); break; } // RES 1,D
+                            case 0x92: { D = Res_R(2, D); break; } // RES 2,D
+                            case 0x9A: { D = Res_R(3, D); break; } // RES 3,D
+                            case 0xA2: { D = Res_R(4, D); break; } // RES 4,D
+                            case 0xAA: { D = Res_R(5, D); break; } // RES 5,D
+                            case 0xB2: { D = Res_R(6, D); break; } // RES 6,D
+                            case 0xBA: { D = Res_R(7, D); break; } // RES 7,D
+                            case 0x83: { E = Res_R(0, E); break; } // RES 0,E
+                            case 0x8B: { E = Res_R(1, E); break; } // RES 1,E
+                            case 0x93: { E = Res_R(2, E); break; } // RES 2,E
+                            case 0x9B: { E = Res_R(3, E); break; } // RES 3,E
+                            case 0xA3: { E = Res_R(4, E); break; } // RES 4,E
+                            case 0xAB: { E = Res_R(5, E); break; } // RES 5,E
+                            case 0xB3: { E = Res_R(6, E); break; } // RES 6,E
+                            case 0xBB: { E = Res_R(7, E); break; } // RES 7,E
+                            case 0x84: { H = Res_R(0, H); break; } // RES 0,H
+                            case 0x8C: { H = Res_R(1, H); break; } // RES 1,H
+                            case 0x94: { H = Res_R(2, H); break; } // RES 2,H
+                            case 0x9C: { H = Res_R(3, H); break; } // RES 3,H
+                            case 0xA4: { H = Res_R(4, H); break; } // RES 4,H
+                            case 0xAC: { H = Res_R(5, H); break; } // RES 5,H
+                            case 0xB4: { H = Res_R(6, H); break; } // RES 6,H
+                            case 0xBC: { H = Res_R(7, H); break; } // RES 7,H
+                            case 0x85: { L = Res_R(0, L); break; } // RES 0,L
+                            case 0x8D: { L = Res_R(1, L); break; } // RES 1,L
+                            case 0x95: { L = Res_R(2, L); break; } // RES 2,L
+                            case 0x9D: { L = Res_R(3, L); break; } // RES 3,L
+                            case 0xA5: { L = Res_R(4, L); break; } // RES 4,L
+                            case 0xAD: { L = Res_R(5, L); break; } // RES 5,L
+                            case 0xB5: { L = Res_R(6, L); break; } // RES 6,L
+                            case 0xBD: { L = Res_R(7, L); break; } // RES 7,L
+                            //Команда установки бита внутри 8-битного значения в памяти по адресу в регистре HL
+                            case 0x86: { poke8(HL, Res_R(0, peek8(HL))); break; } // RES 0,(HL)
+                            case 0x8E: { poke8(HL, Res_R(1, peek8(HL))); break; } // RES 1,(HL)
+                            case 0x96: { poke8(HL, Res_R(2, peek8(HL))); break; } // RES 2,(HL)
+                            case 0x9E: { poke8(HL, Res_R(3, peek8(HL))); break; } // RES 3,(HL)
+                            case 0xA6: { poke8(HL, Res_R(4, peek8(HL))); break; } // RES 4,(HL)
+                            case 0xAE: { poke8(HL, Res_R(5, peek8(HL))); break; } // RES 5,(HL)
+                            case 0xB6: { poke8(HL, Res_R(6, peek8(HL))); break; } // RES 6,(HL)
+                            case 0xBE: { poke8(HL, Res_R(7, peek8(HL))); break; } // RES 7,(HL)
+                            //Команды проверки бита внутри 8-битного регистра
+                            case 0x47: { Bit_R(0, A); break; } // BIT 0,A
+                            case 0x4F: { Bit_R(1, A); break; } // BIT 1,A
+                            case 0x57: { Bit_R(2, A); break; } // BIT 2,A
+                            case 0x5F: { Bit_R(3, A); break; } // BIT 3,A
+                            case 0x67: { Bit_R(4, A); break; } // BIT 4,A
+                            case 0x6F: { Bit_R(5, A); break; } // BIT 5,A
+                            case 0x77: { Bit_R(6, A); break; } // BIT 6,A
+                            case 0x7F: { Bit_R(7, A); break; } // BIT 7,A
+                            case 0x40: { Bit_R(0, B); break; } // BIT 0,B
+                            case 0x48: { Bit_R(1, B); break; } // BIT 1,B
+                            case 0x50: { Bit_R(2, B); break; } // BIT 2,B
+                            case 0x58: { Bit_R(3, B); break; } // BIT 3,B
+                            case 0x60: { Bit_R(4, B); break; } // BIT 4,B
+                            case 0x68: { Bit_R(5, B); break; } // BIT 5,B
+                            case 0x70: { Bit_R(6, B); break; } // BIT 6,B
+                            case 0x78: { Bit_R(7, B); break; } // BIT 7,B
+                            case 0x41: { Bit_R(0, C); break; } // BIT 0,C
+                            case 0x49: { Bit_R(1, C); break; } // BIT 1,C
+                            case 0x51: { Bit_R(2, C); break; } // BIT 2,C
+                            case 0x59: { Bit_R(3, C); break; } // BIT 3,C
+                            case 0x61: { Bit_R(4, C); break; } // BIT 4,C
+                            case 0x69: { Bit_R(5, C); break; } // BIT 5,C
+                            case 0x71: { Bit_R(6, C); break; } // BIT 6,C
+                            case 0x79: { Bit_R(7, C); break; } // BIT 7,C
+                            case 0x42: { Bit_R(0, D); break; } // BIT 0,D
+                            case 0x4A: { Bit_R(1, D); break; } // BIT 1,D
+                            case 0x52: { Bit_R(2, D); break; } // BIT 2,D
+                            case 0x5A: { Bit_R(3, D); break; } // BIT 3,D
+                            case 0x62: { Bit_R(4, D); break; } // BIT 4,D
+                            case 0x6A: { Bit_R(5, D); break; } // BIT 5,D
+                            case 0x72: { Bit_R(6, D); break; } // BIT 6,D
+                            case 0x7A: { Bit_R(7, D); break; } // BIT 7,D
+                            case 0x43: { Bit_R(0, E); break; } // BIT 0,E
+                            case 0x4B: { Bit_R(1, E); break; } // BIT 1,E
+                            case 0x53: { Bit_R(2, E); break; } // BIT 2,E
+                            case 0x5B: { Bit_R(3, E); break; } // BIT 3,E
+                            case 0x63: { Bit_R(4, E); break; } // BIT 4,E
+                            case 0x6B: { Bit_R(5, E); break; } // BIT 5,E
+                            case 0x73: { Bit_R(6, E); break; } // BIT 6,E
+                            case 0x7B: { Bit_R(7, E); break; } // BIT 7,E
+                            case 0x44: { Bit_R(0, H); break; } // BIT 0,H
+                            case 0x4C: { Bit_R(1, H); break; } // BIT 1,H
+                            case 0x54: { Bit_R(2, H); break; } // BIT 2,H
+                            case 0x5C: { Bit_R(3, H); break; } // BIT 3,H
+                            case 0x64: { Bit_R(4, H); break; } // BIT 4,H
+                            case 0x6C: { Bit_R(5, H); break; } // BIT 5,H
+                            case 0x74: { Bit_R(6, H); break; } // BIT 6,H
+                            case 0x7C: { Bit_R(7, H); break; } // BIT 7,H
+                            case 0x45: { Bit_R(0, L); break; } // BIT 0,L
+                            case 0x4D: { Bit_R(1, L); break; } // BIT 1,L
+                            case 0x55: { Bit_R(2, L); break; } // BIT 2,L
+                            case 0x5D: { Bit_R(3, L); break; } // BIT 3,L
+                            case 0x65: { Bit_R(4, L); break; } // BIT 4,L
+                            case 0x6D: { Bit_R(5, L); break; } // BIT 5,L
+                            case 0x75: { Bit_R(6, L); break; } // BIT 6,L
+                            case 0x7D: { Bit_R(7, L); break; } // BIT 7,L
+                            //Команда установки бита внутри 8-битного значения в памяти по адресу в регистре HL
+                            case 0x46: { Bit_R(0, peek8(HL)); break; } // BIT 0,(HL)
+                            case 0x4E: { Bit_R(1, peek8(HL)); break; } // BIT 1,(HL)
+                            case 0x56: { Bit_R(2, peek8(HL)); break; } // BIT 2,(HL)
+                            case 0x5E: { Bit_R(3, peek8(HL)); break; } // BIT 3,(HL)
+                            case 0x66: { Bit_R(4, peek8(HL)); break; } // BIT 4,(HL)
+                            case 0x6E: { Bit_R(5, peek8(HL)); break; } // BIT 5,(HL)
+                            case 0x76: { Bit_R(6, peek8(HL)); break; } // BIT 6,(HL)
+                            case 0x7E: { Bit_R(7, peek8(HL)); break; } // BIT 7,(HL)
+
+
 
                         }
                         break;
                     }
 
-                        default: break;
+                default: break;
             }
         }
 
