@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ZxDisAsm
 {
-    class Z80Core
+    public class Z80Core
     {
 
         public Z80Core()
@@ -20,17 +20,22 @@ namespace ZxDisAsm
                 for (k = 0; k < 8; k++) { p ^= (byte)(j & 1); j >>= 1; }
                 parity[i] = (byte)(p > 0 ? 0 : (byte)flags.P);
             }
+            Interrupt = false;
         }
+
+        public bool HaltOn = false;
+        public byte lastOpcodeWasEI = 0;        //used for re-triggered interrupts
+
         private enum regs
         {
             B, C,
             D, E,
             L, H,
             A, F,
+            R,
             IXH, IXL,
             IYH, IYL,
-            I,
-            R
+            I
         };
 
         public enum flags
@@ -45,19 +50,51 @@ namespace ZxDisAsm
             S = 0x80
         };
 
-        private byte[] reg = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };  //B, C, D, E, L, H, A, F, IXH, IXL, IYH, IYL, I, R 
-        private byte[] reg_ = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }; //B`, C`, D`, E`, L`, H`, A`, F` 
-
+        private byte[] reg = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };  //B, C, D, E, L, H, A, F, R, IXH, IXL, IYH, IYL, I 
+        private byte[] reg_ = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }; //B`, C`, D`, E`, L`, H`, A`, F`, R' 
 
         public bool IFF1;
         public bool IFF2;
-        public byte IM;
+        public byte IM; //0 = IM0, 1 = IM1, 2 = IM2
+
+        public bool Interrupt; //true - произошло прерывание
 
         //регистры
         private ushort regSP;
         private ushort regPC;
 
         protected byte[] parity = new byte[256];
+
+        protected int memPtr = 0;
+        public int MemPtr
+        {
+            get
+            {
+                return memPtr;
+            }
+            set
+            {
+                memPtr = value & 0xffff;
+            }
+        }
+
+        public bool IM0
+        {
+            get { return (IM & 0x01) > 0;  }
+            set { IM = value ? (byte)0x01 : (byte)(IM & (0xff ^ 0x01)); }
+        }
+
+        public bool IM1
+        {
+            get { return (IM & 0x02) > 0; }
+            set { IM = value ? (byte)0x02 : (byte)(IM & (0xff ^ 0x02)); }
+        }
+
+        public bool IM2
+        {
+            get { return (IM & 0x04) > 0; }
+            set { IM = value ? (byte)0x04 : (byte)(IM & (0xff ^ 0x04)); }
+        }
 
         public byte B
         {
@@ -139,9 +176,15 @@ namespace ZxDisAsm
 
         public byte R
         {
-            get { return reg[(int)regs.R]; }
-            set { reg[(int)regs.R] = value; }
+            get { return (byte)(reg_[(int)regs.R] | (reg[(int)regs.R] & 7)); }
+            set { reg[(int)regs.R] = (byte)(value & 0x7F); }
         }
+        public byte R_
+        {
+            get { return (byte)(reg_[(int)regs.R] | (reg[(int)regs.R] & 7)); }
+            set { reg_[(int)regs.R] = (byte)(value & 0x80); R = value; }
+        }
+
 
         public ushort BC
         {
@@ -158,8 +201,8 @@ namespace ZxDisAsm
             get { return (ushort)((reg[(int)regs.D] << 8) + reg[(int)regs.E]); }
             set
             {
-                reg[(int)regs.D] = (byte)(value & 0x00FF);
-                reg[(int)regs.E] = (byte)(value >> 8);
+                reg[(int)regs.E] = (byte)(value & 0x00FF);
+                reg[(int)regs.D] = (byte)(value >> 8);
             }
         }
 
@@ -168,8 +211,8 @@ namespace ZxDisAsm
             get { return (ushort)((reg[(int)regs.H] << 8) + reg[(int)regs.L]); }
             set
             {
-                reg[(int)regs.H] = (byte)(value & 0x00FF);
-                reg[(int)regs.L] = (byte)(value >> 8);
+                reg[(int)regs.L] = (byte)(value & 0x00FF);
+                reg[(int)regs.H] = (byte)(value >> 8);
             }
         }
 
@@ -178,8 +221,8 @@ namespace ZxDisAsm
             get { return (ushort)((reg[(int)regs.A] << 8) + reg[(int)regs.F]); }
             set
             {
-                reg[(int)regs.A] = (byte)(value & 0x00FF);
-                reg[(int)regs.F] = (byte)(value >> 8);
+                reg[(int)regs.F] = (byte)(value & 0x00FF);
+                reg[(int)regs.A] = (byte)(value >> 8);
             }
         }
 
@@ -188,8 +231,8 @@ namespace ZxDisAsm
             get { return (ushort)((reg[(int)regs.IXH] << 8) + reg[(int)regs.IXL]); }
             set
             {
-                reg[(int)regs.IXH] = (byte)(value & 0x00FF);
-                reg[(int)regs.IXL] = (byte)(value >> 8);
+                reg[(int)regs.IXL] = (byte)(value & 0x00FF);
+                reg[(int)regs.IXH] = (byte)(value >> 8);
             }
         }
 
@@ -198,8 +241,8 @@ namespace ZxDisAsm
             get { return (ushort)((reg[(int)regs.IYH] << 8) + reg[(int)regs.IYL]); }
             set
             {
-                reg[(int)regs.IYH] = (byte)(value & 0x00FF);
-                reg[(int)regs.IYL] = (byte)(value >> 8);
+                reg[(int)regs.IYL] = (byte)(value & 0x00FF);
+                reg[(int)regs.IYH] = (byte)(value >> 8);
             }
         }
 
@@ -270,8 +313,8 @@ namespace ZxDisAsm
             get { return (ushort)((reg_[(int)regs.A] << 8) + reg_[(int)regs.F]); }
             set
             {
-                reg_[(int)regs.A] = (byte)(value & 0x00FF);
-                reg_[(int)regs.F] = (byte)(value >> 8);
+                reg_[(int)regs.F] = (byte)(value & 0x00FF);
+                reg_[(int)regs.A] = (byte)(value >> 8);
             }
         }
 
@@ -290,8 +333,8 @@ namespace ZxDisAsm
             get { return (ushort)((reg_[(int)regs.D] << 8) + reg_[(int)regs.E]); }
             set
             {
-                reg_[(int)regs.D] = (byte)(value & 0x00FF);
-                reg_[(int)regs.E] = (byte)(value >> 8);
+                reg_[(int)regs.E] = (byte)(value & 0x00FF);
+                reg_[(int)regs.D] = (byte)(value >> 8);
             }
         }
 
@@ -300,8 +343,8 @@ namespace ZxDisAsm
             get { return (ushort)((reg_[(int)regs.H] << 8) + reg_[(int)regs.L]); }
             set
             {
-                reg_[(int)regs.H] = (byte)(value & 0x00FF);
-                reg_[(int)regs.L] = (byte)(value >> 8);
+                reg_[(int)regs.L] = (byte)(value & 0x00FF);
+                reg_[(int)regs.H] = (byte)(value >> 8);
             }
         }
 
@@ -425,9 +468,9 @@ namespace ZxDisAsm
             }
         }
 
-        public short GetDisplacement(byte val)
+        public int GetDisplacement(byte val)
         {
-            short res = (short)((128 ^ val) - 128);
+            int res = (short)((128 ^ val) - 128);
             return res;
         }
 
@@ -553,8 +596,8 @@ namespace ZxDisAsm
             F_PARITY = ((HL ^ reg) & (HL ^ ans) & 0x8000) != 0;
             F_SIGN = (ans & ((int)flags.S << 8)) != 0;
             F_ZERO = ans == 0;
-            F_3 = (ans & (int)flags.n3) != 0;
-            F_5 = (ans & (int)flags.n5) != 0;
+            F_3 = ((ans >> 8) & (int)flags.n3) != 0;
+            F_5 = ((ans >> 8) & (int)flags.n5) != 0;
             HL = (ushort)ans;
         }
 
@@ -581,6 +624,7 @@ namespace ZxDisAsm
             F_HALF = true;
             F_ZERO = ans == 0;
             F_PARITY = (parity[ans] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(ans);
             F_3 = (ans & (int)flags.n3) != 0;
             F_5 = (ans & (int)flags.n5) != 0;
             A = (byte)ans;
@@ -595,6 +639,7 @@ namespace ZxDisAsm
             F_HALF = false;
             F_ZERO = ans == 0;
             F_PARITY = (parity[ans] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(ans);
             F_3 = (ans & (int)flags.n3) != 0;
             F_5 = (ans & (int)flags.n5) != 0;
             A = (byte)ans;
@@ -609,6 +654,8 @@ namespace ZxDisAsm
             F_HALF = false;
             F_ZERO = ans == 0;
             F_PARITY = (parity[ans] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(ans);
+
             F_3 = (ans & (int)flags.n3) != 0;
             F_5 = (ans & (int)flags.n5) != 0;
             A = (byte)ans;
@@ -622,11 +669,13 @@ namespace ZxDisAsm
             F_CARRY = msb != 0;
             F_HALF = false;
             F_NEG = false;
+            //F_PARITY = GetParity(reg);
+
             F_PARITY = (parity[reg] & (int)flags.P) > 0;
             F_ZERO = reg == 0;
             F_SIGN = (reg & (int)flags.S) != 0;
             F_3 = (reg & (int)flags.n3) != 0;
-            F_3 = (reg & (int)flags.n5) != 0;
+            F_5 = (reg & (int)flags.n5) != 0;
             return (byte)reg;
         }
 
@@ -639,6 +688,8 @@ namespace ZxDisAsm
             F_HALF = false;
             F_NEG = false;
             F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(reg);
+
             F_ZERO = reg == 0;
             F_SIGN = (reg & 0x80) != 0;
             F_3 = (reg & (int)flags.n3) != 0;
@@ -656,6 +707,7 @@ namespace ZxDisAsm
             F_HALF = false;
             F_NEG = false;
             F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(reg);
             F_ZERO = reg == 0;
             F_SIGN = (reg & (int)flags.S) != 0;
             F_3 = (reg & (int)flags.n3) != 0;
@@ -672,6 +724,7 @@ namespace ZxDisAsm
             F_HALF = false;
             F_NEG = false;
             F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(reg);
             F_ZERO = reg == 0;
             F_SIGN = (reg & (int)flags.S) != 0;
             F_3 = (reg & (int)flags.n3) != 0;
@@ -693,6 +746,7 @@ namespace ZxDisAsm
             F_HALF = false;
             F_NEG = false;
             F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(reg);
             F_ZERO = reg == 0;
             F_SIGN = (reg & (int)flags.S) != 0;
             F_3 = (reg & (int)flags.n3) != 0;
@@ -713,6 +767,7 @@ namespace ZxDisAsm
             F_HALF = false;
             F_NEG = false;
             F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(reg);
             F_ZERO = reg == 0;
             F_SIGN = (reg & (int)flags.S) != 0;
             F_3 = (reg & (int)flags.n3) != 0;
@@ -736,6 +791,7 @@ namespace ZxDisAsm
             F_HALF = false;
             F_NEG = false;
             F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(reg);
             F_ZERO = reg == 0;
             F_SIGN = (reg & (int)flags.S) != 0;
             F_3 = (reg & (int)flags.n3) != 0;
@@ -758,6 +814,7 @@ namespace ZxDisAsm
             F_HALF = false;
             F_NEG = false;
             F_PARITY = (parity[reg] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(reg);
             F_ZERO = reg == 0;
             F_SIGN = (reg & (int)flags.S) != 0;
             F_3 = (reg & (int)flags.n3) != 0;
@@ -842,9 +899,9 @@ namespace ZxDisAsm
             F_SIGN = (b == 7) ? bitset : false;
             F_3 = (reg & (int)flags.n3) != 0;
             F_5 = (reg & (int)flags.n5) != 0;
-            F = (byte)((F & (int)flags.C) | (int)flags.H | (reg & ((int)flags.n3 | (int)flags.n5)));
-            if (!((reg & (0x01 << (b))) > 0)) F |= (int)flags.P | (int)flags.Z;
-            if ((b == 7) && ((reg & 0x80) > 0)) F |= (int)flags.S;
+            //F = (byte)((F & (int)flags.C) | (int)flags.H | (reg & ((int)flags.n3 | (int)flags.n5)));
+            //if (!((reg & (0x01 << (b))) > 0)) F |= (int)flags.P | (int)flags.Z;
+            //if ((b == 7) && ((reg & 0x80) > 0)) F |= (int)flags.S;
         }
 
         //Reset bit operation (RES b, r)
@@ -860,6 +917,134 @@ namespace ZxDisAsm
             reg = reg | (1 << b);
             return (byte)reg;
         }
+
+        //port = A0..A7  + A8..A15 line of address bus
+        public byte In()
+        {
+            byte ret = In(BC);
+            F_NEG = false;
+            F_PARITY = (parity[ret] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(ret);
+            F_SIGN = (ret & (int)flags.S) != 0;
+            F_ZERO = ret == 0;
+            F_HALF = false;
+            F_3 = (ret & (int)flags.n3) != 0;
+            F_5 = (ret & (int)flags.n5) != 0;
+            return ret;
+        }
+
+
+        public ushort port = 0x00;
+        public byte key = 0x00;
+        public bool intTmp = true;
+
+        //port = A0..A7  + A8..A15 line of address bus
+        public byte In(ushort addr)
+        {
+
+            if (key == 0x00) return 0xFF;
+
+            //switch (addr)
+            //{
+            //    case 0xF7FE:
+            //        break;
+            //    case 0xFBFE:
+            //        break;
+            //    case 0xFDFE:
+            //        break;
+            //    case 0xFEFE:
+            //        break;
+            //    case 0xEFFE:
+            //        break;
+            //    case 0xDFFE:
+            //        break;
+            //    case 0xBFFE:
+            //        if (key == 0xFE)
+            //        {
+            //            intTmp = false;
+            //            return (0xFE & 0x1f) | 0xa0;
+            //        }
+            //        break;
+            //    case 0x7FFE:
+            //        break;
+            //    default:
+            //        {
+            //            break;
+            //        }
+            //}
+
+
+            if (port == addr)
+            {
+                byte ret_key = key;
+                key = 0x00;
+                //intTmp = false;
+                //return (byte)((ret_key & 0x1f) | 0xa0);
+                return (byte)(ret_key);
+            }
+
+            return 0xFF;
+        }
+
+        public void Out(ushort addr, byte val)
+        {
+
+        }
+
+        public void DAA()
+        {
+            int ans = A;
+            int incr = 0;
+            bool carry = (F & (int)flags.C) != 0;
+
+            if (((F & (int)flags.H) != 0) || ((ans & 0x0f) > 0x09))
+            {
+                incr |= 0x06;
+            }
+
+            if (carry || (ans > 0x9f) || ((ans > 0x8f) && ((ans & 0x0f) > 0x09)))
+            {
+                incr |= 0x60;
+            }
+
+            if (ans > 0x99)
+            {
+                carry = true;
+            }
+
+            if ((F & (int)flags.N) != 0)
+            {
+                Sub_R(incr);
+            }
+            else
+            {
+                Add_R(incr);
+            }
+
+            ans = A;
+            F_CARRY = carry;
+            F_PARITY  = (parity[ans] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(ans);
+
+        }
+
+
+        //public bool GetParity(int val)
+        //{
+        //    bool parity = false;
+        //    int runningCounter = 0;
+        //    for (int count = 0; count < 8; count++)
+        //    {
+        //        if ((val & 0x80) != 0)
+        //            runningCounter++;
+        //        val = val << 1;
+        //    }
+
+        //    if (runningCounter % 2 == 0)
+        //        parity = true;
+
+        //    return parity;
+        //}
     }
 
 }
