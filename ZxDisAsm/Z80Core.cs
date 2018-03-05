@@ -25,6 +25,7 @@ namespace ZxDisAsm
 
         public bool HaltOn = false;
         public byte lastOpcodeWasEI = 0;        //used for re-triggered interrupts
+        public byte border;
 
         private enum regs
         {
@@ -988,7 +989,8 @@ namespace ZxDisAsm
 
         public void Out(ushort addr, byte val)
         {
-
+            if ((addr & 0xFF) == 0xFE)
+                border = (byte)(val & 0x07);
         }
 
         public void DAA()

@@ -24,6 +24,7 @@ namespace ZxDisAsm
         bool flash = false;
 
         Progress<ProgessRet> progress;
+        Progress<ProgessRetBorder> progressBorder;
 
         Graphics gForm;
 
@@ -38,8 +39,13 @@ namespace ZxDisAsm
                 RedrawScreen(gForm, s.videoRam, s.attrRam);
             });
 
-        }
+            progressBorder = new Progress<ProgessRetBorder>(s =>
+            {
+                RedrawBoreder(gForm, s.border);
+            });
 
+        }
+    
         async private void button1_Click(object sender, EventArgs e)
         {
 
@@ -55,10 +61,10 @@ namespace ZxDisAsm
             timer_flash.Start();
             zx48 = new Zx48Machine();
             gForm = this.CreateGraphics();
-            await Task.Factory.StartNew(() => Worker.StartZX(progress, zx48), TaskCreationOptions.DenyChildAttach);
+            await Task.Factory.StartNew(() => Worker.StartZX(progress, progressBorder, zx48), TaskCreationOptions.DenyChildAttach);
             RedrawScreen(gForm, zx48.GetVideoRAM(), zx48.GetAttRAM());
         }
-        
+
         int[] scr_ypoz = {  0,8,16,24,32,40,48,56,
                             1,9,17,25,33,41,49,57,
                             2,10,18,26,34,42,50,58,
@@ -85,6 +91,18 @@ namespace ZxDisAsm
                             133,141,149,157,165,173,181,189,
                             134,142,150,158,166,174,182,190,
                             135,143,151,159,167,175,183,191 };
+
+        private void RedrawBoreder(Graphics g, byte border)
+        {
+            int scr_size_x = 256;
+            int scr_size_y = 192;
+
+            g.FillRectangle(new SolidBrush(ZxColor[border]), 0, 0, scr_size_x + 60, 30);
+            g.FillRectangle(new SolidBrush(ZxColor[border]), 0, scr_size_y +30, scr_size_x + 60, 30);
+            g.FillRectangle(new SolidBrush(ZxColor[border]), 0, 0, 30, scr_size_y + 60);
+            g.FillRectangle(new SolidBrush(ZxColor[border]), scr_size_x + 30, 0, 30, scr_size_y + 60);
+
+        }
 
         private void RedrawScreen(Graphics g, byte[] video, byte[] attr)
         {
@@ -319,9 +337,9 @@ namespace ZxDisAsm
         public static bool run;
   
 
-        public static void StartZX(IProgress<ProgessRet> progress, Zx48Machine zx48)
+        public static void StartZX(IProgress<ProgessRet> progress, IProgress<ProgessRetBorder> progressBorder, Zx48Machine zx48)
         {
-
+            byte borderOld = 0x00;
             run = true;
             zx48.Reset();
 
@@ -339,13 +357,20 @@ namespace ZxDisAsm
                     swRedraw.Restart();
                 }
 
-                if (swInterrupt.ElapsedMilliseconds > 50) //50 раз в секунду
+                if (swInterrupt.ElapsedMilliseconds > 20) //50 раз в секунду
                 {
                     zx48.Interrupt = true;                        
                     swInterrupt.Restart();
                 }
+
+                if (borderOld != zx48.border)
+                {
+                    progressBorder.Report(new ProgessRetBorder(zx48.border));
+                    borderOld = zx48.border;
+                }
+
             }
-            
+
 
         }
     }
@@ -363,4 +388,15 @@ namespace ZxDisAsm
 
     }
 
+    public class ProgessRetBorder
+    {
+
+        public ProgessRetBorder(byte border)
+        {
+            this.border = border;
+        }
+
+        public byte border;
+
+    }
 }

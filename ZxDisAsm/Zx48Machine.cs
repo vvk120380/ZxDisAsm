@@ -36,7 +36,7 @@ namespace ZxDisAsm
             //byte[] arr = 
             //zx48.SetROM(arr);
 
-            Array.Copy(File.ReadAllBytes(@"e:\1\48.rom"), ROM, ROM.Length);       
+            Array.Copy(File.ReadAllBytes(@"C:\1\ROM48.rom"), ROM, ROM.Length);       
 
         }
 
