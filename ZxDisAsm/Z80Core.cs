@@ -910,73 +910,9 @@ namespace ZxDisAsm
             return (byte)reg;
         }
 
-        //port = A0..A7  + A8..A15 line of address bus
-        public byte In()
-        {
-            byte ret = In(BC);
-            F_NEG = false;
-            F_PARITY = (parity[ret] & (int)flags.P) > 0;
-            //F_PARITY = GetParity(ret);
-            F_SIGN = (ret & (int)flags.S) != 0;
-            F_ZERO = ret == 0;
-            F_HALF = false;
-            F_3 = (ret & (int)flags.n3) != 0;
-            F_5 = (ret & (int)flags.n5) != 0;
-            return ret;
-        }
-
-
         public ushort port = 0x00;
         public byte key = 0x00;
         public bool intTmp = true;
-
-        //port = A0..A7  + A8..A15 line of address bus
-        public byte In(ushort addr)
-        {
-
-            if (key == 0x00) return 0xFF;
-
-            //switch (addr)
-            //{
-            //    case 0xF7FE:
-            //        break;
-            //    case 0xFBFE:
-            //        break;
-            //    case 0xFDFE:
-            //        break;
-            //    case 0xFEFE:
-            //        break;
-            //    case 0xEFFE:
-            //        break;
-            //    case 0xDFFE:
-            //        break;
-            //    case 0xBFFE:
-            //        if (key == 0xFE)
-            //        {
-            //            intTmp = false;
-            //            return (0xFE & 0x1f) | 0xa0;
-            //        }
-            //        break;
-            //    case 0x7FFE:
-            //        break;
-            //    default:
-            //        {
-            //            break;
-            //        }
-            //}
-
-
-            if (port == addr)
-            {
-                byte ret_key = key;
-                key = 0x00;
-                //intTmp = false;
-                //return (byte)((ret_key & 0x1f) | 0xa0);
-                return (byte)(ret_key);
-            }
-
-            return 0xFF;
-        }
 
         public void DAA()
         {

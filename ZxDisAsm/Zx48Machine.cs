@@ -65,6 +65,52 @@ namespace ZxDisAsm
             OnBorderEvent(new BorderEventArgs((byte)(border & 0x07)));
         }
 
+        //port = A0..A7  + A8..A15 line of address bus
+        public byte In()
+        {
+            byte ret = In(BC);
+            F_NEG = false;
+            F_PARITY = (parity[ret] & (int)flags.P) > 0;
+            //F_PARITY = GetParity(ret);
+            F_SIGN = (ret & (int)flags.S) != 0;
+            F_ZERO = ret == 0;
+            F_HALF = false;
+            F_3 = (ret & (int)flags.n3) != 0;
+            F_5 = (ret & (int)flags.n5) != 0;
+            return ret;
+        }
+
+        //port = A0..A7  + A8..A15 line of address bus
+        public byte In(ushort addr)
+        {
+            byte retByte = 0xFF;
+
+            switch (addr)
+            {
+                case 0xFEFE: retByte = keyBuff[0]; break;
+                case 0xFDFE: retByte = keyBuff[1]; break;
+                case 0xFBFE: retByte = keyBuff[2]; break;
+                case 0xF7FE: retByte = keyBuff[3]; break;
+                case 0xEFFE: retByte = keyBuff[4]; break;
+                case 0xDFFE: retByte = keyBuff[5]; break;
+                case 0xBFFE: retByte = keyBuff[6]; break;
+                case 0x7FFE: retByte = keyBuff[7]; break;
+                default: {retByte = 0xFF; break;}
+            }
+
+
+            //if (port == addr)
+            //{
+            //    byte ret_key = key;
+            //    key = 0x00;
+            //    //intTmp = false;
+            //    //return (byte)((ret_key & 0x1f) | 0xa0);
+            //    return (byte)(ret_key);
+            //}
+
+            return retByte;
+        }
+
 
         public void Out(ushort addr, byte val)
         {
@@ -74,6 +120,9 @@ namespace ZxDisAsm
             }
 
         }
+
+        public byte[] keyBuff = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
 
         byte opcode;
         byte tmp8;
