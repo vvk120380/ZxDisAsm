@@ -180,12 +180,12 @@ namespace ZxDisAsm
             get { return (byte)(reg_[(int)regs.R] | (reg[(int)regs.R] & 7)); }
             set { reg[(int)regs.R] = (byte)(value & 0x7F); }
         }
+
         public byte R_
         {
             get { return (byte)(reg_[(int)regs.R] | (reg[(int)regs.R] & 7)); }
             set { reg_[(int)regs.R] = (byte)(value & 0x80); R = value; }
         }
-
 
         public ushort BC
         {
@@ -259,7 +259,6 @@ namespace ZxDisAsm
             set { regPC = value; }
         }
 
-
         public byte B_
         {
             get { return reg_[(int)regs.B]; }
@@ -289,7 +288,6 @@ namespace ZxDisAsm
             get { return reg_[(int)regs.L]; }
             set { reg_[(int)regs.L] = value; }
         }
-
 
         public byte H_
         {
@@ -661,8 +659,7 @@ namespace ZxDisAsm
             F_5 = (ans & (int)flags.n5) != 0;
             A = (byte)ans;
         }
-
-        //Shift left arithmetic register (SLA r)
+        
         public byte Sla_R(int reg)
         {
             int msb = reg & (int)flags.S; //save the msb bit
@@ -680,7 +677,6 @@ namespace ZxDisAsm
             return (byte)reg;
         }
 
-        //Shift right arithmetic register (SRA r)
         public byte Sra_R(int reg)
         {
             int lsb = reg & (int)flags.C; //save the lsb bit
@@ -698,7 +694,6 @@ namespace ZxDisAsm
             return (byte)reg;
         }
 
-        //Shift left logical register (SLI r)
         public byte Sli_R(int reg)
         {
             int msb = reg & (int)flags.C; //save the msb bit
@@ -716,7 +711,6 @@ namespace ZxDisAsm
             return (byte)reg;
         }
 
-        //Shift right logical register (SRL r)
         public byte Srl_R(int reg)
         {
             int lsb = reg & (int)flags.C; //save the lsb bit
@@ -732,7 +726,6 @@ namespace ZxDisAsm
             F_5 = (reg & (int)flags.n5) != 0;
             return (byte)reg;
         }
-
 
         public byte Rlc_R(int reg)
         {
@@ -800,7 +793,6 @@ namespace ZxDisAsm
             return (byte)reg;
         }
 
-        //Rotate right register (RL r)
         public byte Rr_R(int reg)
         {
             bool rc = (reg & (int)flags.C) != 0;
@@ -823,8 +815,6 @@ namespace ZxDisAsm
             return (byte)reg;
         }
 
-
-
         public void Rlca()
         {
             bool ac = (A & (int)flags.S) != 0; //save the msb bit
@@ -840,6 +830,7 @@ namespace ZxDisAsm
             F_HALF = false;
             F_NEG = false;
         }
+
         public void Rrca()
         {
 
@@ -987,12 +978,6 @@ namespace ZxDisAsm
             return 0xFF;
         }
 
-        public void Out(ushort addr, byte val)
-        {
-            if ((addr & 0xFF) == 0xFE)
-                border = (byte)(val & 0x07);
-        }
-
         public void DAA()
         {
             int ans = A;
@@ -1030,23 +1015,6 @@ namespace ZxDisAsm
 
         }
 
-
-        //public bool GetParity(int val)
-        //{
-        //    bool parity = false;
-        //    int runningCounter = 0;
-        //    for (int count = 0; count < 8; count++)
-        //    {
-        //        if ((val & 0x80) != 0)
-        //            runningCounter++;
-        //        val = val << 1;
-        //    }
-
-        //    if (runningCounter % 2 == 0)
-        //        parity = true;
-
-        //    return parity;
-        //}
     }
 
 }

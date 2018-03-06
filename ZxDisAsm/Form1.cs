@@ -32,6 +32,7 @@ namespace ZxDisAsm
 
         public Form1()
         {
+
             InitializeComponent();
 
             progress = new Progress<ProgessRet>(s => {
@@ -41,11 +42,14 @@ namespace ZxDisAsm
 
             progressBorder = new Progress<ProgessRetBorder>(s =>
             {
-                RedrawBoreder(gForm, s.border);
+                //RedrawBorder(gForm, s.border);
             });
 
+            zx48 = new Zx48Machine();
+            zx48.BorderEvent += new BorderEventHandler(BorderChange);
+
         }
-    
+
         async private void button1_Click(object sender, EventArgs e)
         {
 
@@ -53,16 +57,20 @@ namespace ZxDisAsm
             {
                 Worker.run = false;
                 timer_flash.Stop();
+                zx48.Reset();
                 return;
             }
 
-            //zx48.SetROM();
 
             timer_flash.Start();
-            zx48 = new Zx48Machine();
-            gForm = this.CreateGraphics();
             await Task.Factory.StartNew(() => Worker.StartZX(progress, progressBorder, zx48), TaskCreationOptions.DenyChildAttach);
-            RedrawScreen(gForm, zx48.GetVideoRAM(), zx48.GetAttRAM());
+            //RedrawScreen(gForm, zx48.GetVideoRAM(), zx48.GetAttRAM());
+        }
+
+
+        private void BorderChange(object sender, BorderEventArgs e)
+        {
+            RedrawBorder(gForm, e.BorderColor);
         }
 
         int[] scr_ypoz = {  0,8,16,24,32,40,48,56,
@@ -92,7 +100,7 @@ namespace ZxDisAsm
                             134,142,150,158,166,174,182,190,
                             135,143,151,159,167,175,183,191 };
 
-        private void RedrawBoreder(Graphics g, byte border)
+        private void RedrawBorder(Graphics g, byte border)
         {
             int scr_size_x = 256;
             int scr_size_y = 192;
@@ -329,7 +337,10 @@ namespace ZxDisAsm
             zx48.key = 0xEF;
         }
 
-
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            gForm = this.CreateGraphics();
+        }
     }
 
     public class Worker

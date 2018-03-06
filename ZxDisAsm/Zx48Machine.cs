@@ -8,8 +8,43 @@ using System.Threading.Tasks;
 
 namespace ZxDisAsm
 {
+
+    public class BorderEventArgs : EventArgs
+    {
+        public byte BorderColor { get; set; }
+
+        public BorderEventArgs(byte color)
+        {
+            BorderColor = color;
+        }
+    }
+
+
+    public delegate void BorderEventHandler(object sender, BorderEventArgs e);
+
+
     public partial class Zx48Machine : Z80Core
     {
+
+        public event BorderEventHandler BorderEvent;
+
+        protected virtual void OnBorderEvent(BorderEventArgs e)
+        {
+            if (BorderEvent != null)
+                BorderEvent.BeginInvoke(this, new BorderEventArgs(e.BorderColor), null, null);
+        }
+
+
+        public void Out(ushort addr, byte val)
+        {
+            if ((addr & 0xFF) == 0xFE)
+            {
+                OnBorderEvent(new BorderEventArgs((byte)(val & 0x07)));
+                border = (byte)(val & 0x07);
+            }
+
+        }
+
         byte opcode;
         byte tmp8;
         ushort tmp16;
@@ -32,12 +67,6 @@ namespace ZxDisAsm
             IFF2 = false;
 
             MemPtr = 0x0000;
-
-            //byte[] arr = 
-            //zx48.SetROM(arr);
-
-            Array.Copy(File.ReadAllBytes(@"C:\1\ROM48.rom"), ROM, ROM.Length);       
-
         }
 
         public byte[] GetVideoRAM()
