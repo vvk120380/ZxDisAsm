@@ -19,8 +19,21 @@ namespace ZxDisAsm
         }
     }
 
-
     public delegate void BorderEventHandler(object sender, BorderEventArgs e);
+
+    public class VideoEventArgs : EventArgs
+    {
+        public byte[] VideoRAM { get; set; }
+        public byte[] AttrRAM { get; set; }
+
+        public VideoEventArgs(byte[] video, byte[] attr)
+        {
+            VideoRAM = video;
+            AttrRAM = attr;
+        }
+    }
+
+    public delegate void VideoEventHandler(object sender, VideoEventArgs e);
 
 
     public partial class Zx48Machine : Z80Core
@@ -28,18 +41,35 @@ namespace ZxDisAsm
 
         public event BorderEventHandler BorderEvent;
 
+        public event VideoEventHandler VideoEvent;
+
         protected virtual void OnBorderEvent(BorderEventArgs e)
         {
             if (BorderEvent != null)
                 BorderEvent.BeginInvoke(this, new BorderEventArgs(e.BorderColor), null, null);
         }
 
+        protected virtual void OnVideoEvent(VideoEventArgs e)
+        {
+            if (VideoEvent != null)
+                VideoEvent.BeginInvoke(this, new VideoEventArgs(e.VideoRAM, e.AttrRAM), null, null);
+        }
+
+        public void SendVideoEvent()
+        {
+            OnVideoEvent(new VideoEventArgs(GetVideoRAM(), GetAttRAM()));
+        }
+
+        public void SendBorder()
+        {
+            OnBorderEvent(new BorderEventArgs((byte)(border & 0x07)));
+        }
+
 
         public void Out(ushort addr, byte val)
         {
             if ((addr & 0xFF) == 0xFE)
-            {
-                OnBorderEvent(new BorderEventArgs((byte)(val & 0x07)));
+            {                
                 border = (byte)(val & 0x07);
             }
 

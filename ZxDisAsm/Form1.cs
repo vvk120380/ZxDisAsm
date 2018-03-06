@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Timers;
 using System.IO;
+using System.Threading;
 
 namespace ZxDisAsm
 {
@@ -28,6 +29,8 @@ namespace ZxDisAsm
 
         Graphics gForm;
 
+        static bool runZx48 = false;
+        Thread myThread;
         Zx48Machine zx48;
 
         public Form1()
@@ -42,11 +45,8 @@ namespace ZxDisAsm
 
             progressBorder = new Progress<ProgessRetBorder>(s =>
             {
-                //RedrawBorder(gForm, s.border);
+                RedrawBorder(gForm, s.border);
             });
-
-            zx48 = new Zx48Machine();
-            zx48.BorderEvent += new BorderEventHandler(BorderChange);
 
         }
 
@@ -56,21 +56,95 @@ namespace ZxDisAsm
             if (Worker.run)
             {
                 Worker.run = false;
-                timer_flash.Stop();
-                zx48.Reset();
                 return;
             }
 
+            zx48 = new Zx48Machine();
 
-            timer_flash.Start();
             await Task.Factory.StartNew(() => Worker.StartZX(progress, progressBorder, zx48), TaskCreationOptions.DenyChildAttach);
             //RedrawScreen(gForm, zx48.GetVideoRAM(), zx48.GetAttRAM());
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+
+            if (runZx48)
+            {
+                runZx48 = false;
+                //myThread.Abort();
+                while (myThread.IsAlive){};
+                return;
+            }
+            zx48 = new Zx48Machine();
+            zx48.BorderEvent += new BorderEventHandler(BorderChange);
+            zx48.VideoEvent += new VideoEventHandler(VideoChange);
+            runZx48 = true;
+            myThread = new Thread(new ParameterizedThreadStart(this.StartZX));
+            myThread.Start(zx48);
+        }
+
+        public void StartZX(object obj)
+        {
+
+            Zx48Machine zx48 = (Zx48Machine)obj;
+
+            zx48.Reset();
+
+            long redrawLast = 0;
+            Stopwatch swRedraw = new Stopwatch();
+            Stopwatch swInterrupt = new Stopwatch();
+            swRedraw.Restart();
+            redrawLast = swRedraw.ElapsedTicks;
+            swInterrupt.Restart();
+            
+
+
+            while (runZx48)
+            {
+                zx48.Execute();
+
+
+                //if (((swRedraw.ElapsedTicks - redrawLast) * 1000) / Stopwatch.Frequency > 40)
+                //{
+                //    redrawLast = swRedraw.ElapsedTicks;
+                //    zx48.SendVideoEvent();
+                //    //swRedraw.Restart();
+                //}
+
+                if (swRedraw.ElapsedMilliseconds > 50)
+                {
+                    swRedraw.Restart();
+                    zx48.SendVideoEvent();
+                    zx48.SendBorder();
+                }
+
+                if (swInterrupt.ElapsedMilliseconds > 20) //50 раз в секунду
+                {
+                    zx48.Interrupt = true;
+                    swInterrupt.Restart();
+                }
+
+                //if (borderOld != zx48.border)
+                //{
+                //    //progressBorder.Report(new ProgessRetBorder(zx48.border));
+                //    zx48.SendBorder();
+                //    borderOld = zx48.border;
+                //}
+            }
+
+            swRedraw.Stop();
+            swInterrupt.Stop();
         }
 
 
         private void BorderChange(object sender, BorderEventArgs e)
         {
             RedrawBorder(gForm, e.BorderColor);
+        }
+
+        private void VideoChange(object sender, VideoEventArgs e)
+        {
+            RedrawScreen(gForm, e.VideoRAM, e.AttrRAM);
         }
 
         int[] scr_ypoz = {  0,8,16,24,32,40,48,56,
@@ -81,7 +155,6 @@ namespace ZxDisAsm
                             5,13,21,29,37,45,53,61,
                             6,14,22,30,38,46,54,62,
                             7,15,23,31,39,47,55,63,
-
                             64,72,80,88,96,104,112,120,
                             65,73,81,89,97,105,113,121,
                             66,74,82,90,98,106,114,122,
@@ -90,7 +163,6 @@ namespace ZxDisAsm
                             69,77,85,93,101,109,117,125,
                             70,78,86,94,102,110,118,126,
                             71,79,87,95,103,111,119,127,
-
                             128,136,144,152,160,168,176,184,
                             129,137,145,153,161,169,177,185,
                             130,138,146,154,162,170,178,186,
@@ -108,8 +180,7 @@ namespace ZxDisAsm
             g.FillRectangle(new SolidBrush(ZxColor[border]), 0, 0, scr_size_x + 60, 30);
             g.FillRectangle(new SolidBrush(ZxColor[border]), 0, scr_size_y +30, scr_size_x + 60, 30);
             g.FillRectangle(new SolidBrush(ZxColor[border]), 0, 0, 30, scr_size_y + 60);
-            g.FillRectangle(new SolidBrush(ZxColor[border]), scr_size_x + 30, 0, 30, scr_size_y + 60);
-
+            g.FillRectangle(new SolidBrush(ZxColor[border]), scr_size_x + 30, 0, 30, scr_size_y + 60);           
         }
 
         private void RedrawScreen(Graphics g, byte[] video, byte[] attr)
@@ -215,6 +286,16 @@ namespace ZxDisAsm
         private void timerflash_Tick(object sender, EventArgs e)
         {
             flash = !flash;
+            if (myThread != null && myThread.IsAlive)
+            {
+                pbStatus.BackColor = Color.DarkGreen;
+                tsLabel.Image = ZxDisAsm.Properties.Resources.Status_off;
+            }
+            else
+            {
+                pbStatus.BackColor = Color.DarkRed;
+                tsLabel.Image = ZxDisAsm.Properties.Resources.Status_on;
+            }
         }
 
         private void btn_enter_Click(object sender, EventArgs e)
@@ -340,7 +421,9 @@ namespace ZxDisAsm
         private void Form1_Load(object sender, EventArgs e)
         {
             gForm = this.CreateGraphics();
+            timer_flash.Start();
         }
+
     }
 
     public class Worker
