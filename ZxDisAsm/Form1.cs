@@ -36,19 +36,9 @@ namespace ZxDisAsm
 
         public Form1()
         {
-
             InitializeComponent();
-
-            progress = new Progress<ProgessRet>(s => {
-                //Graphics g = this.CreateGraphics();
-                RedrawScreen(gForm, s.videoRam, s.attrRam);
-            });
-
-            progressBorder = new Progress<ProgessRetBorder>(s =>
-            {
-                RedrawBorder(gForm, s.border);
-            });
-            
+            progress = new Progress<ProgessRet>(s => { RedrawScreen(gForm, s.videoRam, s.attrRam); });
+            progressBorder = new Progress<ProgessRetBorder>(s => { RedrawBorder(gForm, s.border); });
         }
 
         async private void button1_Click(object sender, EventArgs e)
@@ -91,32 +81,36 @@ namespace ZxDisAsm
 
             zx48.Reset();
 
-            long redrawLast = 0;
             Stopwatch swRedraw = new Stopwatch();
             Stopwatch swInterrupt = new Stopwatch();
+            Stopwatch swBorder = new Stopwatch();
+            Stopwatch swlonger = new Stopwatch();
+
             swRedraw.Restart();
-            redrawLast = swRedraw.ElapsedTicks;
             swInterrupt.Restart();
-            
+            swBorder.Restart();
+
+            double milliseconds;
+            double microseconds;
+            double nanoseconds;
 
 
             while (runZx48)
             {
                 zx48.Execute();
 
-
-                //if (((swRedraw.ElapsedTicks - redrawLast) * 1000) / Stopwatch.Frequency > 40)
-                //{
-                //    redrawLast = swRedraw.ElapsedTicks;
-                //    zx48.SendVideoEvent();
-                //    //swRedraw.Restart();
-                //}
-
-                if (swRedraw.ElapsedMilliseconds > 50)
+                if (swRedraw.ElapsedMilliseconds > 100)
                 {
                     swRedraw.Restart();
+                    swlonger.Reset();
+                    swlonger.Start();
                     zx48.SendVideoEvent();
-                    zx48.SendBorder();
+                    swlonger.Stop();
+                    milliseconds = (swlonger.ElapsedTicks * 1000) / Stopwatch.Frequency;
+                    microseconds = (swlonger.ElapsedTicks * 1000000) / Stopwatch.Frequency;
+                    nanoseconds  = (swlonger.ElapsedTicks * 1000000000) / Stopwatch.Frequency;
+                    Console.WriteLine($"{milliseconds} ms - {microseconds} mks - { nanoseconds} ns");
+                    //zx48.SendBorder();
                 }
 
                 if (swInterrupt.ElapsedMilliseconds > 20) //50 раз в секунду
@@ -125,16 +119,15 @@ namespace ZxDisAsm
                     swInterrupt.Restart();
                 }
 
-                //if (borderOld != zx48.border)
-                //{
-                //    //progressBorder.Report(new ProgessRetBorder(zx48.border));
-                //    zx48.SendBorder();
-                //    borderOld = zx48.border;
-                //}
+                if (swBorder.ElapsedMilliseconds > 1)
+                {
+                    //zx48.SendBorder();
+                }
             }
 
             swRedraw.Stop();
             swInterrupt.Stop();
+            swBorder.Stop();
         }
 
 
@@ -192,48 +185,36 @@ namespace ZxDisAsm
 
             int scr_size_x = 256;
             int scr_size_y = 192;
+            int x = 0;
+            int iy = 0;
+            int dColor = 0;
 
-
-            //Stopwatch stopWatch = new Stopwatch();
-            //stopWatch.Start();
 
             Bitmap bmp = new Bitmap(scr_size_x, scr_size_y, PixelFormat.Format24bppRgb);
-            int x = 0;
- 
             Rectangle rect = new Rectangle(0, 0, bmp.Width, bmp.Height);
             BitmapData bmpData = bmp.LockBits(rect, ImageLockMode.ReadWrite, bmp.PixelFormat);
 
-            // Get the address of the first line.
-            IntPtr ptr = bmpData.Scan0;
-
-            // Declare an array to hold the bytes of the bitmap.
-            int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
-            byte[] rgbValues = new byte[bytes];
-
-            // Copy the RGB values into the array.
-            Marshal.Copy(ptr, rgbValues, 0, bytes);
-
-            for (int l = 0; l < scr_ypoz.Length; l++)
+            unsafe
             {
-                int iy = scr_ypoz[l] * bmp.Width * 3;
-                for (int i = 0; i < 32; i++, x++)
+                byte* data = (byte*)bmpData.Scan0.ToPointer();
+
+                for (int l = 0; l < scr_ypoz.Length; l++)
                 {
-                    int dColor = attr[ (scr_ypoz[l] / 8)*32 + i];
-                    if ((dColor & 0x40) > 0)
+                    iy = scr_ypoz[l] * bmp.Width * 3;
+                    int dZ = (scr_ypoz[l] / 8) * 32;
+                    for (int i = 0; i < 32; i++, x++)
                     {
-                        forecolor = ZxColorLight[dColor & 0x7];
-                        backcolor = ZxColorLight[(dColor >> 30) & 0x7];
-                    }
-                    else
-                    {
-                        if ((dColor & 0x80) == 0)
+                        dColor = attr[dZ + i];
+
+                        //Установлен бит 6 - повышенная яркость
+                        if ((dColor & 0x40) > 0)
                         {
-                            forecolor = ZxColor[dColor & 0x7];
-                            backcolor = ZxColor[(dColor >> 3) & 0x7];
+                            forecolor = ZxColorLight[dColor & 0x7];
+                            backcolor = ZxColorLight[(dColor >> 3) & 0x7];
                         }
                         else
                         {
-                            if (flash)
+                            if ((dColor & 0x80) > 0 && flash)
                             {
                                 forecolor = ZxColor[(dColor >> 3) & 0x7];
                                 backcolor = ZxColor[dColor & 0x7];
@@ -243,31 +224,105 @@ namespace ZxDisAsm
                                 forecolor = ZxColor[dColor & 0x7];
                                 backcolor = ZxColor[(dColor >> 3) & 0x7];
                             }
-                        }
-                    }
 
-                    for (int r = 0; r < 8; r++)
-                    {
-                        color = ((video[x] & (1 << r)) > 0) ? forecolor : backcolor;
-                        if ((video[x] & (1 << r)) > 0)
+
+                            //Не установлен бит 7 - мерцание
+                            //if ((dColor & 0x80) == 0)
+                            //{
+                            //    forecolor = ZxColor[dColor & 0x7];
+                            //    backcolor = ZxColor[(dColor >> 3) & 0x7];
+                            //}
+                            //else
+                            //    if (flash)
+                            //    {
+                            //        forecolor = ZxColor[(dColor >> 3) & 0x7];
+                            //        backcolor = ZxColor[dColor & 0x7];
+                            //    }
+                            //    else
+                            //    {
+                            //        forecolor = ZxColor[dColor & 0x7];
+                            //        backcolor = ZxColor[(dColor >> 3) & 0x7];
+                            //    }
+                        }
+
+                        for (int r = 0; r < 8; r++)
                         {
-                            int z = 0;
+                            color = ((video[x] & (1 << r)) > 0) ? forecolor : backcolor;
+                            int ix = ((i * 8) + (7 - r)) * 3;
+                            data[iy + ix + 0] = color.B;
+                            data[iy + ix + 1] = color.G;
+                            data[iy + ix + 2] = color.R;
                         }
-
-                        int ix = ((i * 8) + (7 - r)) * 3;
-                        rgbValues[iy + ix] = color.B;
-                        rgbValues[iy + ix + 1] = color.G;
-                        rgbValues[iy + ix + 2] = color.R;
                     }
                 }
+
             }
-
-            // Copy the RGB values back to the bitmap
-            Marshal.Copy(rgbValues, 0, ptr, bytes);
-
-            // Unlock the bits.
             bmp.UnlockBits(bmpData);
             g.DrawImage(bmp, 180, 60);
+
+            //// Get the address of the first line.
+            //IntPtr ptr = bmpData.Scan0;
+
+            //// Declare an array to hold the bytes of the bitmap.
+            //int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
+            //byte[] rgbValues = new byte[bytes];
+
+            //// Copy the RGB values into the array.
+            //Marshal.Copy(ptr, rgbValues, 0, bytes);
+
+            //for (int l = 0; l < scr_ypoz.Length; l++)
+            //{
+            //    iy = scr_ypoz[l] * bmp.Width * 3;
+            //    for (int i = 0; i < 32; i++, x++)
+            //    {
+            //        dColor = attr[(scr_ypoz[l] / 8) * 32 + i];
+
+            //        //Установлен бит 6 - повышенная яркость
+            //        if ((dColor & 0x40) > 0)
+            //        {
+            //            forecolor = ZxColorLight[dColor & 0x7];
+            //            backcolor = ZxColorLight[(dColor >> 30) & 0x7];
+            //        }
+            //        else
+            //        {
+            //            //Не установлен бит 7 - мерцание
+            //            if ((dColor & 0x80) == 0)
+            //            {
+            //                forecolor = ZxColor[dColor & 0x7];
+            //                backcolor = ZxColor[(dColor >> 3) & 0x7];
+            //            }
+            //            else
+            //            {
+            //                if (flash)
+            //                {
+            //                    forecolor = ZxColor[(dColor >> 3) & 0x7];
+            //                    backcolor = ZxColor[dColor & 0x7];
+            //                }
+            //                else
+            //                {
+            //                    forecolor = ZxColor[dColor & 0x7];
+            //                    backcolor = ZxColor[(dColor >> 3) & 0x7];
+            //                }
+            //            }
+            //        }
+
+            //        for (int r = 0; r < 8; r++)
+            //        {
+            //            color = ((video[x] & (1 << r)) > 0) ? forecolor : backcolor;
+            //            int ix = ((i * 8) + (7 - r)) * 3;
+            //            rgbValues[iy + ix + 0] = color.B;
+            //            rgbValues[iy + ix + 1] = color.G;
+            //            rgbValues[iy + ix + 2] = color.R;
+            //        }
+            //    }
+            //}
+
+            //// Copy the RGB values back to the bitmap
+            //Marshal.Copy(rgbValues, 0, ptr, bytes);
+
+            //// Unlock the bits.
+            //bmp.UnlockBits(bmpData);
+            //g.DrawImage(bmp, 180, 60);
         }
 
 
@@ -407,57 +462,6 @@ namespace ZxDisAsm
 
         }
 
-        private void timer_keyScan_Tick(object sender, EventArgs e)
-        {
-
-               //case Keys.ControlKey: zx48.port = 0xFEFE; zx48.key = 0xFE; zx48.keyBuff[0] ^= 0x01; break;
-               // case Keys.Z: zx48.port = 0xFEFE; zx48.key = 0xFD; zx48.keyBuff[0] ^= 0x02; break;
-               // case Keys.X: zx48.port = 0xFEFE; zx48.key = 0xFB; zx48.keyBuff[0] ^= 0x04; break;
-               // case Keys.C: zx48.port = 0xFEFE; zx48.key = 0xF7; zx48.keyBuff[0] ^= 0x08; break;
-               // case Keys.V: zx48.port = 0xFEFE; zx48.key = 0xEF; zx48.keyBuff[0] ^= 0x10; break;
-
-               // case Keys.A: zx48.port = 0xFDFE; zx48.key = 0xFE; zx48.keyBuff[1] ^= 0x01; break;
-               // case Keys.S: zx48.port = 0xFDFE; zx48.key = 0xFD; zx48.keyBuff[1] ^= 0x02; break;
-               // case Keys.D: zx48.port = 0xFDFE; zx48.key = 0xFB; zx48.keyBuff[1] ^= 0x04; break;
-               // case Keys.F: zx48.port = 0xFDFE; zx48.key = 0xF7; zx48.keyBuff[1] ^= 0x08; break;
-               // case Keys.G: zx48.port = 0xFDFE; zx48.key = 0xEF; zx48.keyBuff[1] ^= 0x10; break;
-
-               // case Keys.Q: zx48.port = 0xFBFE; zx48.key = 0xFE; zx48.keyBuff[2] ^= 0x01; break;
-               // case Keys.W: zx48.port = 0xFBFE; zx48.key = 0xFD; zx48.keyBuff[2] ^= 0x02; break;
-               // case Keys.E: zx48.port = 0xFBFE; zx48.key = 0xFB; zx48.keyBuff[2] ^= 0x04; break;
-               // case Keys.R: zx48.port = 0xFBFE; zx48.key = 0xF7; zx48.keyBuff[2] ^= 0x08; break;
-               // case Keys.T: zx48.port = 0xFBFE; zx48.key = 0xEF; zx48.keyBuff[2] ^= 0x10; break;
-
-               // case Keys.D1: zx48.port = 0xF7FE; zx48.key = 0xFE; zx48.keyBuff[3] ^= 0x01; break;
-               // case Keys.D2: zx48.port = 0xF7FE; zx48.key = 0xFD; zx48.keyBuff[3] ^= 0x02; break;
-               // case Keys.D3: zx48.port = 0xF7FE; zx48.key = 0xFB; zx48.keyBuff[3] ^= 0x04; break;
-               // case Keys.D4: zx48.port = 0xF7FE; zx48.key = 0xF7; zx48.keyBuff[3] ^= 0x08; break;
-               // case Keys.D5: zx48.port = 0xF7FE; zx48.key = 0xEF; zx48.keyBuff[3] ^= 0x10; break;
-
-               // case Keys.D0: zx48.port = 0xEFFE; zx48.key = 0xFE; zx48.keyBuff[4] ^= 0x01; break;
-               // case Keys.D9: zx48.port = 0xEFFE; zx48.key = 0xFD; zx48.keyBuff[4] ^= 0x02; break;
-               // case Keys.D8: zx48.port = 0xEFFE; zx48.key = 0xFB; zx48.keyBuff[4] ^= 0x04; break;
-               // case Keys.D7: zx48.port = 0xEFFE; zx48.key = 0xF7; zx48.keyBuff[4] ^= 0x08; break;
-               // case Keys.D6: zx48.port = 0xEFFE; zx48.key = 0xEF; zx48.keyBuff[4] ^= 0x10; break;
-
-               // case Keys.P: zx48.port = 0xDFFE; zx48.key = 0xFE; zx48.keyBuff[5] ^= 0x01; break;
-               // case Keys.O: zx48.port = 0xDFFE; zx48.key = 0xFD; zx48.keyBuff[5] ^= 0x02; break;
-               // case Keys.I: zx48.port = 0xDFFE; zx48.key = 0xFB; zx48.keyBuff[5] ^= 0x04; break;
-               // case Keys.U: zx48.port = 0xDFFE; zx48.key = 0xF7; zx48.keyBuff[5] ^= 0x08; break;
-               // case Keys.Y: zx48.port = 0xDFFE; zx48.key = 0xEF; zx48.keyBuff[5] ^= 0x10; break;
-
-               // case Keys.Enter: zx48.port = 0xBFFE; zx48.key = 0xFE; zx48.keyBuff[6] ^= 0x01; break;
-               // case Keys.L: zx48.port = 0xBFFE; zx48.key = 0xFD; zx48.keyBuff[6] ^= 0x02; break;
-               // case Keys.K: zx48.port = 0xBFFE; zx48.key = 0xFB; zx48.keyBuff[6] ^= 0x04; break;
-               // case Keys.J: zx48.port = 0xBFFE; zx48.key = 0xF7; zx48.keyBuff[6] ^= 0x08; break;
-               // case Keys.H: zx48.port = 0xBFFE; zx48.key = 0xEF; zx48.keyBuff[6] ^= 0x10; break;
-
-               // case Keys.Space: zx48.port = 0x7FFE; zx48.key = 0xFE; zx48.keyBuff[7] ^= 0x01; break;
-               // case Keys.ShiftKey: zx48.port = 0x7FFE; zx48.key = 0xFD; zx48.keyBuff[7] ^= 0x02; break;
-               // case Keys.M: zx48.port = 0x7FFE; zx48.key = 0xFB; zx48.keyBuff[7] ^= 0x04; break;
-               // case Keys.N: zx48.port = 0x7FFE; zx48.key = 0xF7; zx48.keyBuff[7] ^= 0x08; break;
-               // case Keys.B: zx48.port = 0x7FFE; zx48.key = 0xEF; zx48.keyBuff[7] ^= 0x10; break;
-        }
     }
 
     public class Worker
