@@ -77,7 +77,7 @@
             this.tsBtnStart.Name = "tsBtnStart";
             this.tsBtnStart.Size = new System.Drawing.Size(23, 22);
             this.tsBtnStart.Text = "toolStripButton1";
-            this.tsBtnStart.Click += new System.EventHandler(this.button2_Click);
+            this.tsBtnStart.Click += new System.EventHandler(this.StartZx_Click);
             // 
             // toolStripSeparator1
             // 

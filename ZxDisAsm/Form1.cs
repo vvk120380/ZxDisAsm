@@ -19,14 +19,22 @@ namespace ZxDisAsm
 {
     public partial class Form1 : Form
     {
-        
+
+        Color borderColor;
+        bool canRedraw = true;
+
+        const int dXOffset = 32;
+        const int dYOffset = 32;
+        const int scr_size_x = 320;
+        const int scr_size_y = 256;
+
         Color[] ZxColor = { Color.Black, Color.Blue, Color.Red, Color.Magenta, Color.Green, Color.Cyan, Color.Yellow, Color.White };
         Color[] ZxColorLight = { Color.FromArgb(0, 50, 50, 50), Color.LightBlue, Color.FromArgb(0, 255, 59, 59), Color.FromArgb(0, 255, 77, 255), Color.LightGreen, Color.LightCyan, Color.LightYellow, Color.LightGray };
 
         bool flash = false;
 
-        Progress<ProgessRet> progress;
-        Progress<ProgessRetBorder> progressBorder;
+        //Progress<ProgessRet> progress;
+        //Progress<ProgessRetBorder> progressBorder;
 
         Graphics gForm;
 
@@ -37,32 +45,31 @@ namespace ZxDisAsm
         public Form1()
         {
             InitializeComponent();
-            progress = new Progress<ProgessRet>(s => { RedrawScreen(gForm, s.videoRam, s.attrRam); });
-            progressBorder = new Progress<ProgessRetBorder>(s => { RedrawBorder(gForm, s.border); });
+            //progress = new Progress<ProgessRet>(s => { RedrawScreen(gForm, s.videoRam, s.attrRam); });
+            //progressBorder = new Progress<ProgessRetBorder>(s => { RedrawBorder(gForm, s.border); });
         }
 
         async private void button1_Click(object sender, EventArgs e)
         {
 
-            if (Worker.run)
-            {
-                Worker.run = false;
-                return;
-            }
+            //if (Worker.run)
+            //{
+            //    Worker.run = false;
+            //    return;
+            //}
 
-            zx48 = new Zx48Machine();
+            //zx48 = new Zx48Machine();
 
-            await Task.Factory.StartNew(() => Worker.StartZX(progress, progressBorder, zx48), TaskCreationOptions.DenyChildAttach);
+            //await Task.Factory.StartNew(() => Worker.StartZX(progress, progressBorder, zx48), TaskCreationOptions.DenyChildAttach);
             //RedrawScreen(gForm, zx48.GetVideoRAM(), zx48.GetAttRAM());
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        private void StartZx_Click(object sender, EventArgs e)
         {
 
             if (runZx48)
             {
                 runZx48 = false;
-                //myThread.Abort();
                 while (myThread.IsAlive){};
                 return;
             }
@@ -72,10 +79,13 @@ namespace ZxDisAsm
             runZx48 = true;
             myThread = new Thread(new ParameterizedThreadStart(this.StartZX));
             myThread.Start(zx48);
+            myThread.Priority = ThreadPriority.Highest;
+
         }
 
         public void StartZX(object obj)
         {
+
 
             Zx48Machine zx48 = (Zx48Machine)obj;
 
@@ -83,34 +93,37 @@ namespace ZxDisAsm
 
             Stopwatch swRedraw = new Stopwatch();
             Stopwatch swInterrupt = new Stopwatch();
-            Stopwatch swBorder = new Stopwatch();
-            Stopwatch swlonger = new Stopwatch();
+            Stopwatch swSecond = new Stopwatch();
 
             swRedraw.Restart();
             swInterrupt.Restart();
-            swBorder.Restart();
+            swSecond.Restart();
 
             double milliseconds;
             double microseconds;
             double nanoseconds;
 
+            long elapsedTicks = 0;
+            long elapsedTicksStart = 0;
+            long execTicks = 0;
+            long execTicksStart = 0;
+            int  runCount = 0;
+            int  execCount = 0;
 
             while (runZx48)
             {
+                execCount++;
+                execTicksStart = swInterrupt.ElapsedTicks;
                 zx48.Execute();
+                execTicks += (swInterrupt.ElapsedTicks - execTicksStart);
 
-                if (swRedraw.ElapsedMilliseconds > 100)
+                if (swRedraw.ElapsedMilliseconds > 40)
                 {
                     swRedraw.Restart();
-                    swlonger.Reset();
-                    swlonger.Start();
+                    runCount++;
+                    elapsedTicksStart = swInterrupt.ElapsedTicks;
                     zx48.SendVideoEvent();
-                    swlonger.Stop();
-                    milliseconds = (swlonger.ElapsedTicks * 1000) / Stopwatch.Frequency;
-                    microseconds = (swlonger.ElapsedTicks * 1000000) / Stopwatch.Frequency;
-                    nanoseconds  = (swlonger.ElapsedTicks * 1000000000) / Stopwatch.Frequency;
-                    Console.WriteLine($"{milliseconds} ms - {microseconds} mks - { nanoseconds} ns");
-                    //zx48.SendBorder();
+                    elapsedTicks += (swInterrupt.ElapsedTicks - elapsedTicksStart);
                 }
 
                 if (swInterrupt.ElapsedMilliseconds > 20) //50 раз в секунду
@@ -119,26 +132,47 @@ namespace ZxDisAsm
                     swInterrupt.Restart();
                 }
 
-                if (swBorder.ElapsedMilliseconds > 1)
+
+                if (swSecond.ElapsedMilliseconds > 1000)
                 {
-                    //zx48.SendBorder();
+                    swSecond.Restart();
+                    elapsedTicks /= runCount;
+                    milliseconds = (elapsedTicks * 1000) / Stopwatch.Frequency;
+                    microseconds = (elapsedTicks * 1000000) / Stopwatch.Frequency;
+                    nanoseconds = (elapsedTicks * 1000000000) / Stopwatch.Frequency;
+                    Console.WriteLine($"Redraw {milliseconds} ms - {microseconds} mks - { nanoseconds} ns - Count = {runCount}");
+                    runCount = 0;
+                    elapsedTicks = 0;
+
+                    double db = (double)execTicks /(double)execCount;
+                    milliseconds = (long)((db * 1000) / Stopwatch.Frequency);
+                    microseconds = (long)((db * 1000000) / Stopwatch.Frequency);
+                    nanoseconds = (long)((db * 1000000000) / Stopwatch.Frequency);
+                    Console.WriteLine($"Execute {milliseconds} ms - {microseconds} mks - { nanoseconds} ns - Count = {execCount}");
+                    execCount = 0;
+                    execTicks = 0;
+
+
                 }
+
             }
 
+            swSecond.Stop();
             swRedraw.Stop();
             swInterrupt.Stop();
-            swBorder.Stop();
         }
 
 
         private void BorderChange(object sender, BorderEventArgs e)
         {
-            RedrawBorder(gForm, e.BorderColor);
+            borderColor = ZxColor[e.BorderColor];
         }
 
         private void VideoChange(object sender, VideoEventArgs e)
         {
-            RedrawScreen(gForm, e.VideoRAM, e.AttrRAM);
+            if (!canRedraw) return;
+            canRedraw = false;
+            RedrawScreen(gForm, e.VideoRAM, e.AttrRAM);            
         }
 
         int[] scr_ypoz = {  0,8,16,24,32,40,48,56,
@@ -166,27 +200,11 @@ namespace ZxDisAsm
                             134,142,150,158,166,174,182,190,
                             135,143,151,159,167,175,183,191 };
 
-        private void RedrawBorder(Graphics g, byte border)
-        {
-            int scr_size_x = 256;
-            int scr_size_y = 192;
-
-            g.FillRectangle(new SolidBrush(ZxColor[border]), 150, 30, scr_size_x + 60, 30);
-            g.FillRectangle(new SolidBrush(ZxColor[border]), 150, scr_size_y + 60, scr_size_x + 60, 30);
-            g.FillRectangle(new SolidBrush(ZxColor[border]), 150, 60, 30, scr_size_y);
-            g.FillRectangle(new SolidBrush(ZxColor[border]), scr_size_x + 180, 60, 30, scr_size_y);
-        }
-
         private void RedrawScreen(Graphics g, byte[] video, byte[] attr)
         {
             Color backcolor = Color.White;
             Color forecolor = Color.Black;
             Color color;
-
-            int scr_size_x = 256;
-            int scr_size_y = 192;
-            int x = 0;
-            int iy = 0;
             int dColor = 0;
 
 
@@ -198,9 +216,17 @@ namespace ZxDisAsm
             {
                 byte* data = (byte*)bmpData.Scan0.ToPointer();
 
-                for (int l = 0; l < scr_ypoz.Length; l++)
+                for (int m = 0; m < scr_size_y; m ++)
+                    for (int t = 0; t < scr_size_x; t++)
+                    {
+                        data[(m * bmp.Width + t) * 3 + 0] = borderColor.B;
+                        data[(m * bmp.Width + t) * 3 + 1] = borderColor.G;
+                        data[(m * bmp.Width + t) * 3 + 2] = borderColor.R;
+                    }
+
+                for (int l = 0, x = 0, iy = 0; l < scr_ypoz.Length; l++)
                 {
-                    iy = scr_ypoz[l] * bmp.Width * 3;
+                    iy = (scr_ypoz[l] + dYOffset) * bmp.Width * 3;
                     int dZ = (scr_ypoz[l] / 8) * 32;
                     for (int i = 0; i < 32; i++, x++)
                     {
@@ -209,126 +235,50 @@ namespace ZxDisAsm
                         //Установлен бит 6 - повышенная яркость
                         if ((dColor & 0x40) > 0)
                         {
-                            forecolor = ZxColorLight[dColor & 0x7];
-                            backcolor = ZxColorLight[(dColor >> 3) & 0x7];
+                            forecolor = ZxColorLight[dColor & 0x07];
+                            backcolor = ZxColorLight[(dColor >> 3) & 0x07];
                         }
                         else
                         {
                             if ((dColor & 0x80) > 0 && flash)
                             {
-                                forecolor = ZxColor[(dColor >> 3) & 0x7];
-                                backcolor = ZxColor[dColor & 0x7];
+                                forecolor = ZxColor[(dColor >> 3) & 0x07];
+                                backcolor = ZxColor[dColor & 0x07];
                             }
                             else
                             {
-                                forecolor = ZxColor[dColor & 0x7];
-                                backcolor = ZxColor[(dColor >> 3) & 0x7];
+                                forecolor = ZxColor[dColor & 0x07];
+                                backcolor = ZxColor[(dColor >> 3) & 0x07];
                             }
-
-
-                            //Не установлен бит 7 - мерцание
-                            //if ((dColor & 0x80) == 0)
-                            //{
-                            //    forecolor = ZxColor[dColor & 0x7];
-                            //    backcolor = ZxColor[(dColor >> 3) & 0x7];
-                            //}
-                            //else
-                            //    if (flash)
-                            //    {
-                            //        forecolor = ZxColor[(dColor >> 3) & 0x7];
-                            //        backcolor = ZxColor[dColor & 0x7];
-                            //    }
-                            //    else
-                            //    {
-                            //        forecolor = ZxColor[dColor & 0x7];
-                            //        backcolor = ZxColor[(dColor >> 3) & 0x7];
-                            //    }
                         }
 
+                        int dx = (i * 8 + dXOffset) * 3;
+                        byte vd = video[x];
+                        int ix = 0;
                         for (int r = 0; r < 8; r++)
                         {
-                            color = ((video[x] & (1 << r)) > 0) ? forecolor : backcolor;
-                            int ix = ((i * 8) + (7 - r)) * 3;
-                            data[iy + ix + 0] = color.B;
-                            data[iy + ix + 1] = color.G;
-                            data[iy + ix + 2] = color.R;
+                            color = ((vd & (1 << r)) > 0) ? forecolor : backcolor;
+                            ix = dx + (7 - r) * 3;
+                            data[iy + ix + 0] = color.B; data[iy + ix + 1] = color.G; data[iy + ix + 2] = color.R;
                         }
                     }
                 }
 
             }
             bmp.UnlockBits(bmpData);
-            g.DrawImage(bmp, 180, 60);
-
-            //// Get the address of the first line.
-            //IntPtr ptr = bmpData.Scan0;
-
-            //// Declare an array to hold the bytes of the bitmap.
-            //int bytes = Math.Abs(bmpData.Stride) * bmp.Height;
-            //byte[] rgbValues = new byte[bytes];
-
-            //// Copy the RGB values into the array.
-            //Marshal.Copy(ptr, rgbValues, 0, bytes);
-
-            //for (int l = 0; l < scr_ypoz.Length; l++)
-            //{
-            //    iy = scr_ypoz[l] * bmp.Width * 3;
-            //    for (int i = 0; i < 32; i++, x++)
-            //    {
-            //        dColor = attr[(scr_ypoz[l] / 8) * 32 + i];
-
-            //        //Установлен бит 6 - повышенная яркость
-            //        if ((dColor & 0x40) > 0)
-            //        {
-            //            forecolor = ZxColorLight[dColor & 0x7];
-            //            backcolor = ZxColorLight[(dColor >> 30) & 0x7];
-            //        }
-            //        else
-            //        {
-            //            //Не установлен бит 7 - мерцание
-            //            if ((dColor & 0x80) == 0)
-            //            {
-            //                forecolor = ZxColor[dColor & 0x7];
-            //                backcolor = ZxColor[(dColor >> 3) & 0x7];
-            //            }
-            //            else
-            //            {
-            //                if (flash)
-            //                {
-            //                    forecolor = ZxColor[(dColor >> 3) & 0x7];
-            //                    backcolor = ZxColor[dColor & 0x7];
-            //                }
-            //                else
-            //                {
-            //                    forecolor = ZxColor[dColor & 0x7];
-            //                    backcolor = ZxColor[(dColor >> 3) & 0x7];
-            //                }
-            //            }
-            //        }
-
-            //        for (int r = 0; r < 8; r++)
-            //        {
-            //            color = ((video[x] & (1 << r)) > 0) ? forecolor : backcolor;
-            //            int ix = ((i * 8) + (7 - r)) * 3;
-            //            rgbValues[iy + ix + 0] = color.B;
-            //            rgbValues[iy + ix + 1] = color.G;
-            //            rgbValues[iy + ix + 2] = color.R;
-            //        }
-            //    }
-            //}
-
-            //// Copy the RGB values back to the bitmap
-            //Marshal.Copy(rgbValues, 0, ptr, bytes);
-
-            //// Unlock the bits.
-            //bmp.UnlockBits(bmpData);
-            //g.DrawImage(bmp, 180, 60);
+            g.DrawImage(bmp, 0, dYOffset);
+            canRedraw = true;
         }
 
 
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
-            if (Worker.run) Worker.run = false;
+            if (runZx48)
+            {
+                runZx48 = false;
+                while (myThread.IsAlive) { };
+                return;
+            }
         }
 
         private void timerflash_Tick(object sender, EventArgs e)
@@ -464,71 +414,71 @@ namespace ZxDisAsm
 
     }
 
-    public class Worker
-    {
-        public static bool run;
+    //public class Worker
+    //{
+    //    public static bool run;
   
 
-        public static void StartZX(IProgress<ProgessRet> progress, IProgress<ProgessRetBorder> progressBorder, Zx48Machine zx48)
-        {
-            byte borderOld = 0x00;
-            run = true;
-            zx48.Reset();
+    //    public static void StartZX(IProgress<ProgessRet> progress, IProgress<ProgessRetBorder> progressBorder, Zx48Machine zx48)
+    //    {
+    //        byte borderOld = 0x00;
+    //        run = true;
+    //        zx48.Reset();
 
-            Stopwatch swRedraw = new Stopwatch();
-            Stopwatch swInterrupt = new Stopwatch();
-            swRedraw.Restart();
-            swInterrupt.Restart();
+    //        Stopwatch swRedraw = new Stopwatch();
+    //        Stopwatch swInterrupt = new Stopwatch();
+    //        swRedraw.Restart();
+    //        swInterrupt.Restart();
 
-            while (run)
-            {
-                zx48.Execute();
-                if (swRedraw.ElapsedMilliseconds > 40)
-                {
-                    progress.Report(new ProgessRet(zx48.GetVideoRAM(), zx48.GetAttRAM()));
-                    swRedraw.Restart();
-                }
+    //        while (run)
+    //        {
+    //            zx48.Execute();
+    //            if (swRedraw.ElapsedMilliseconds > 40)
+    //            {
+    //                progress.Report(new ProgessRet(zx48.GetVideoRAM(), zx48.GetAttRAM()));
+    //                swRedraw.Restart();
+    //            }
 
-                if (swInterrupt.ElapsedMilliseconds > 20) //50 раз в секунду
-                {
-                    zx48.Interrupt = true;                        
-                    swInterrupt.Restart();
-                }
+    //            if (swInterrupt.ElapsedMilliseconds > 20) //50 раз в секунду
+    //            {
+    //                zx48.Interrupt = true;                        
+    //                swInterrupt.Restart();
+    //            }
 
-                if (borderOld != zx48.border)
-                {
-                    progressBorder.Report(new ProgessRetBorder(zx48.border));
-                    borderOld = zx48.border;
-                }
+    //            if (borderOld != zx48.border)
+    //            {
+    //                progressBorder.Report(new ProgessRetBorder(zx48.border));
+    //                borderOld = zx48.border;
+    //            }
 
-            }
+    //        }
 
 
-        }
-    }
-    public class ProgessRet
-    {
+    //    }
+    //}
+    //public class ProgessRet
+    //{
 
-        public ProgessRet(byte[] videoRam, byte[] attrRam)
-        {
-            this.videoRam = videoRam;
-            this.attrRam = attrRam;
-        }
+    //    public ProgessRet(byte[] videoRam, byte[] attrRam)
+    //    {
+    //        this.videoRam = videoRam;
+    //        this.attrRam = attrRam;
+    //    }
 
-        public byte[] videoRam;
-        public byte[] attrRam;
+    //    public byte[] videoRam;
+    //    public byte[] attrRam;
 
-    }
+    //}
 
-    public class ProgessRetBorder
-    {
+    //public class ProgessRetBorder
+    //{
 
-        public ProgessRetBorder(byte border)
-        {
-            this.border = border;
-        }
+    //    public ProgessRetBorder(byte border)
+    //    {
+    //        this.border = border;
+    //    }
 
-        public byte border;
+    //    public byte border;
 
-    }
+    //}
 }

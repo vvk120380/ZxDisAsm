@@ -912,7 +912,6 @@ namespace ZxDisAsm
 
         public ushort port = 0x00;
         public byte key = 0x00;
-        public bool intTmp = true;
 
         public void DAA()
         {

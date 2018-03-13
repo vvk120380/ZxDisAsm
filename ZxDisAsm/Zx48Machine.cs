@@ -84,7 +84,6 @@ namespace ZxDisAsm
         public byte In(ushort addr)
         {
             byte retByte = 0xFF;
-
             switch (addr)
             {
                 case 0xFEFE: retByte = keyBuff[0]; break;
@@ -97,17 +96,6 @@ namespace ZxDisAsm
                 case 0x7FFE: retByte = keyBuff[7]; break;
                 default: {retByte = 0xFF; break;}
             }
-
-
-            //if (port == addr)
-            //{
-            //    byte ret_key = key;
-            //    key = 0x00;
-            //    //intTmp = false;
-            //    //return (byte)((ret_key & 0x1f) | 0xa0);
-            //    return (byte)(ret_key);
-            //}
-
             return retByte;
         }
 
@@ -115,7 +103,8 @@ namespace ZxDisAsm
         public void Out(ushort addr, byte val)
         {
             if ((addr & 0xFF) == 0xFE)
-            {                
+            {
+                OnBorderEvent(new BorderEventArgs((byte)(val & 0x07)));
                 border = (byte)(val & 0x07);
             }
 
@@ -224,8 +213,7 @@ namespace ZxDisAsm
 
         public void Execute()
         {
-
-            if (IFF1 && Interrupt && /*(lastOpcodeWasEI == 0) &&*/ intTmp)
+            if (IFF1 && Interrupt /*&& (lastOpcodeWasEI == 0) &&*/ )
             {
                 IFF1 = false;
                 IFF2 = false;
@@ -252,48 +240,7 @@ namespace ZxDisAsm
 
             }
 
-            //if (lastOpcodeWasEI > 0) lastOpcodeWasEI--;
-
-            //R++;
-
-            if (PC == 0x09F4)
-            {
-
-               // Console.WriteLine("0x09F4");
-            }
-
-            if (PC == 0x0052)
-            {
-
-               // Console.WriteLine("0x0052");
-            }
-
-            if (PC == 0x15fb)
-            {
-
-                //Console.WriteLine("0x15f9");
-            }
-
-            if (PC == 0x1855 )
-            {
-
-                //Console.WriteLine("0x0d7e");
-            }
-
-            if (PC == 0x0e19)
-            {
-
-                //Console.WriteLine("0x15f9");
-            }
-
-            if (PC == 0x0C55)
-            {
-
-                //Console.WriteLine("0x15f9");
-            }
-
             opcode = next8();
-
             switch (opcode)
             {
                 //Команды загрузки 8-битного регистра непосредственным 8-битным значением
@@ -2277,33 +2224,6 @@ namespace ZxDisAsm
                         break;
                     }
             }
-
-            //if (IFF1 && lastOpcodeWasEI == 0 && Interrupt)
-            //{
-            //    R++;
-            //    IFF1 = false;
-            //    IFF2 = false;
-
-            //    Interrupt = false;
-
-            //    if (HaltOn)
-            //    {
-            //        HaltOn = false;
-            //        PC++;
-            //    }
-
-            //    if (IM0 || IM1)
-            //    {
-            //        PushStack(PC);
-            //        PC = 0x38;
-            //    }
-            //    else
-            //    {
-            //        ushort ptr = (ushort)((I << 8) | 0xff);
-            //        PushStack(PC);
-            //        PC = peek16(ptr);
-            //    }
-            //}
         }
 
     }
