@@ -1055,7 +1055,6 @@ namespace ZxDisAsm
         const ushort RAMStart = RAMAttrEnd + 1;
         const ushort RAMEnd   = RAMStart + 0xA500 - 1;
         const ushort RAMSize = 0xA500;
-
         byte[] RAM = new byte[0xA500];
 
     }

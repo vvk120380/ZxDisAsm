@@ -412,12 +412,21 @@ namespace ZxDisAsm
 
         }
 
+        private void toolStripButton1_Click(object sender, EventArgs e)
+        {
+            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\NetherEarth.z80";
+            Z80Reader zx80Reader = new Z80Reader();
+            zx80Reader.Read(path);
+
+            zx48.SetMempory(zx80Reader.Memory, zx80Reader.Header);
+        }
+
     }
 
     //public class Worker
     //{
     //    public static bool run;
-  
+
 
     //    public static void StartZX(IProgress<ProgessRet> progress, IProgress<ProgessRetBorder> progressBorder, Zx48Machine zx48)
     //    {

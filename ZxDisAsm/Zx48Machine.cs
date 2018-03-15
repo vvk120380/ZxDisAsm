@@ -119,7 +119,9 @@ namespace ZxDisAsm
         byte val8;
         byte code8;
         ushort addr16;
-       
+
+        bool pause = false;
+
         public int dispBytesWrite = 0;
 
         public Zx48Machine()
@@ -145,6 +147,44 @@ namespace ZxDisAsm
         public byte[] GetAttRAM()
         {
             return this.RAMAttr;
+        }
+
+        public void SetMempory(byte[] memory, BasicFileHeader header)
+        {
+            pause = true;
+
+
+            //if (memory.Length < RAMSize)
+            Buffer.BlockCopy(memory, memory.Length - RAMSize, RAM, 0, RAMSize);
+
+            //Buffer.BlockCopy(memory, 0, RAMDisp, 0, RAMDispSize);
+            //Buffer.BlockCopy(memory, RAMDispSize, RAMAttr, 0, RAMAttrSize);
+            //Buffer.BlockCopy(memory, RAMDispSize + RAMAttrSize, RAM, 0, RAMSize);
+
+            //Buffer.BlockCopy(memory, 0, RAMAttr, 0, RAMAttrSize);
+            //Buffer.BlockCopy(memory, RAMAttrSize, RAM, 0, RAMSize);
+
+            A = header.A;
+            BC = header.BC;
+            DE = header.DE;
+            F = header.F;
+            HL = header.HL;
+            IX = header.IX;
+            IY = header.IY;
+            A_ = header.A_Dash;
+            BC_ = header.BC_Dash;
+            DE_ = header.DE_Dash;
+            F_ = header.F_Dash;
+            HL_ = header.HL_Dash;
+            PC = header.PC;
+            I = header.InterruptRegister;
+            SP = header.SP;
+            IFF2 = header.IFF2 > 0 ? true : false;
+            IFF1 = header.IFF2 > 0 ? true : false;
+            IM2 = true;
+            Interrupt = true;
+            
+            pause = false;
         }
 
         byte peek8(ushort addr)
@@ -213,7 +253,11 @@ namespace ZxDisAsm
 
         public void Execute()
         {
-            if (IFF1 && Interrupt /*&& (lastOpcodeWasEI == 0) &&*/ )
+            if (pause)
+                return;
+
+
+            if (IFF1 && Interrupt)
             {
                 IFF1 = false;
                 IFF2 = false;
@@ -233,9 +277,9 @@ namespace ZxDisAsm
                 }
                 else
                 {
-                    ushort ptr = (ushort)((I << 8) | 0xff);
+                    int ptr = (I << 8) | 0xFF;
                     PushStack(PC);
-                    PC = peek16(ptr);
+                    PC = peek16((ushort)ptr);
                 }
 
             }
@@ -618,7 +662,7 @@ namespace ZxDisAsm
                 case 0xFB:  //EI
                     IFF1 = true;
                     IFF2 = true;
-                    //lastOpcodeWasEI = 1;
+                    lastOpcodeWasEI = 1;
                     break;
                 case 0x00: break; // NOP
                 case 0x2F: // CPL

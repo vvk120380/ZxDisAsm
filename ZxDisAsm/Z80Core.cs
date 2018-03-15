@@ -24,7 +24,7 @@ namespace ZxDisAsm
         }
 
         public bool HaltOn = false;
-        public byte lastOpcodeWasEI = 0;        //used for re-triggered interrupts
+        public int lastOpcodeWasEI = 0;        //used for re-triggered interrupts
         public byte border;
 
         private enum regs
