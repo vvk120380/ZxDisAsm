@@ -21,6 +21,8 @@ namespace ZxDisAsm
                 parity[i] = (byte)(p > 0 ? 0 : (byte)flags.P);
             }
             Interrupt = false;
+
+            R_ = 0x00;
         }
 
         public bool HaltOn = false;
@@ -183,7 +185,7 @@ namespace ZxDisAsm
 
         public byte R_
         {
-            get { return (byte)(reg_[(int)regs.R] | (reg[(int)regs.R] & 7)); }
+            //get { return (byte)(reg_[(int)regs.R] | (reg[(int)regs.R] & 7)); }
             set { reg_[(int)regs.R] = (byte)(value & 0x80); R = value; }
         }
 

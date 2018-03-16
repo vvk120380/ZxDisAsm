@@ -151,18 +151,14 @@ namespace ZxDisAsm
 
         public void SetMempory(byte[] memory, BasicFileHeader header)
         {
+
             pause = true;
 
+            while (!isPaused) { }
 
-            //if (memory.Length < RAMSize)
-            Buffer.BlockCopy(memory, memory.Length - RAMSize, RAM, 0, RAMSize);
-
-            //Buffer.BlockCopy(memory, 0, RAMDisp, 0, RAMDispSize);
-            //Buffer.BlockCopy(memory, RAMDispSize, RAMAttr, 0, RAMAttrSize);
-            //Buffer.BlockCopy(memory, RAMDispSize + RAMAttrSize, RAM, 0, RAMSize);
-
-            //Buffer.BlockCopy(memory, 0, RAMAttr, 0, RAMAttrSize);
-            //Buffer.BlockCopy(memory, RAMAttrSize, RAM, 0, RAMSize);
+            Buffer.BlockCopy(memory, 0, RAMDisp, 0, RAMDispSize);
+            Buffer.BlockCopy(memory, RAMDispSize, RAMAttr, 0, RAMAttrSize);
+            Buffer.BlockCopy(memory, RAMDispSize + RAMAttrSize, RAM, 0, RAMSize);
 
             A = header.A;
             BC = header.BC;
@@ -179,11 +175,41 @@ namespace ZxDisAsm
             PC = header.PC;
             I = header.InterruptRegister;
             SP = header.SP;
-            IFF2 = header.IFF2 > 0 ? true : false;
-            IFF1 = header.IFF2 > 0 ? true : false;
-            IM2 = true;
-            Interrupt = true;
-            
+            //lastOpcodeWasEI = 10;
+            //lastOpcodeWasEI = header.InterruptFlipFlop;
+            //if (header.InterruptFlipFlop == 0)
+            //{
+            //    IFF1 = true;
+            //    IFF2 = true;
+            //    lastOpcodeWasEI = header.InterruptFlipFlop;
+            //}
+            //else
+            //{
+            //    IFF1 = true;
+            //    IFF2 = true;
+            //    lastOpcodeWasEI = 1;
+            //}
+
+
+            switch (header.Flags1)
+            {
+                case 0: IM0 = true; break;
+                case 1: IM1 = true; break;
+                case 2: IM2 = true; break;
+            }
+
+            IFF1 = false;
+            IFF2 = true;
+            lastOpcodeWasEI = 0;
+
+            PC = PopStack();
+            IFF1 = IFF2;
+
+            //Out(0xFE, header.Flags2);
+
+            //IFF2 = true;
+            Interrupt = false;
+
             pause = false;
         }
 
@@ -250,18 +276,22 @@ namespace ZxDisAsm
             return (ushort)val;
         }
 
+        static bool isPaused = false;
 
         public void Execute()
         {
             if (pause)
+            {
+                isPaused = true;
                 return;
+            }
 
+            isPaused = false;
 
-            if (IFF1 && Interrupt)
+            if (IFF1 && Interrupt && (lastOpcodeWasEI == 0))
             {
                 IFF1 = false;
                 IFF2 = false;
-
                 Interrupt = false;
 
                 if (HaltOn)
@@ -282,9 +312,15 @@ namespace ZxDisAsm
                     PC = peek16((ushort)ptr);
                 }
 
+                R++;
+
             }
 
+            if (lastOpcodeWasEI > 0) lastOpcodeWasEI--;
+
             opcode = next8();
+
+            R++;
             switch (opcode)
             {
                 //Команды загрузки 8-битного регистра непосредственным 8-битным значением
@@ -835,6 +871,7 @@ namespace ZxDisAsm
                             
                             case 0xCB:
                                 {
+                                    R++;
                                     val8 = next8();
                                     code8 = next8();
                                     switch (code8)
@@ -1148,6 +1185,7 @@ namespace ZxDisAsm
                 case 0xFD:
                     {
                         opcode = next8();
+                        R++;
                         switch (opcode)
                         {
                             //Команды загрузки 8-битного регистра непосредственным 8-битным значением
@@ -1276,6 +1314,7 @@ namespace ZxDisAsm
                                 {
                                     val8 = next8();
                                     code8 = next8();
+                                    R++;
                                     switch (code8)
                                     {
                                         //Команды логического сдвига вправо 8-битного значения в памяти по адресу в индексном регистре (со смещением)
@@ -1584,6 +1623,7 @@ namespace ZxDisAsm
                 case 0xED:
                     {
                         opcode = next8();
+                        R++;
                         switch (opcode)
                         {
                             //Команды загрузки, использующие служебный 8-битный регистр в качестве одного из операндов
@@ -1599,7 +1639,10 @@ namespace ZxDisAsm
                                     F_ZERO = A == 0;
                                     break;
                                 } //LD A,I
-                            case 0x4F: { R = A; break; } //LD R,A
+                            case 0x4F:
+                                {
+                                    R_ = A; break;
+                                } //LD R,A
                             case 0x5F:
                                 {
                                     A = R;
@@ -1881,9 +1924,9 @@ namespace ZxDisAsm
                                 }
 
                             case 0x46:  //IM0
-                            case 0x4E:
-                            case 0x66:
-                            case 0x6E:
+                            //case 0x4E:
+                            //case 0x66:
+                            //case 0x6E:
                                 IM0 = true;
                                 break;
                             case 0x56:  //IM1
@@ -1972,6 +2015,7 @@ namespace ZxDisAsm
                 case 0xCB:
                     {
                         opcode = next8();
+                        R++;
                         switch (opcode)
                         {
                             //Команды загрузки, использующие служебный 8-битный регистр в качестве одного из операндов

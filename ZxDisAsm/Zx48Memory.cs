@@ -1042,18 +1042,18 @@ namespace ZxDisAsm
         };
 
 
-        const ushort RAMDispStart = ROMEnd + 1;
-        const ushort RAMDispEnd   = RAMDispStart + RAMDispSize - 1;
+        const ushort RAMDispStart = ROMEnd + 1; //0x4000
+        const ushort RAMDispEnd   = RAMDispStart + RAMDispSize - 1; //0x4000 + 0x1800 - 1  = 0x57FF
         const ushort RAMDispSize  = 0x1800;
         byte[] RAMDisp = new byte[RAMDispSize];
 
-        const ushort RAMAttrStart = RAMDispEnd + 1;
-        const ushort RAMAttrEnd   = RAMAttrStart + RAMAttrSize - 1;
+        const ushort RAMAttrStart = RAMDispEnd + 1; //0x5800
+        const ushort RAMAttrEnd   = RAMAttrStart + RAMAttrSize - 1; //0x5800 + 0x300 - 1 = 0x5AFF
         const ushort RAMAttrSize  = 0x300;
         byte[] RAMAttr = new byte[RAMAttrSize];
 
-        const ushort RAMStart = RAMAttrEnd + 1;
-        const ushort RAMEnd   = RAMStart + 0xA500 - 1;
+        const ushort RAMStart = RAMAttrEnd + 1; //0x5B00
+        const ushort RAMEnd   = RAMStart + 0xA500 - 1; //0x5B00 + 0xA500 - 1 = 0xFFFF (65535 = 64кб)
         const ushort RAMSize = 0xA500;
         byte[] RAM = new byte[0xA500];
 

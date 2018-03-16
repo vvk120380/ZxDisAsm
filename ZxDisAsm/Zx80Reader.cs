@@ -11,7 +11,7 @@ namespace ZxDisAsm
     public class Z80Reader
     {
         private byte[] m_buffer;
-        private byte[] m_memory;
+        private byte[] page;
 
         private string m_filename;
 
@@ -23,7 +23,7 @@ namespace ZxDisAsm
 
         public byte[] Memory
         {
-            get { return m_memory; }
+            get { return page; }
         }
 
         public BasicFileHeader Header
@@ -36,9 +36,12 @@ namespace ZxDisAsm
             m_filename = _filename;
 
             LoadFile();
-            GetHeader();
-            ClearMemory();
-            Decompress();
+
+            GetSNA();
+
+            //GetHeader();
+            //ClearMemory();
+            //Decompress();
 
             return true;
         }
@@ -63,28 +66,72 @@ namespace ZxDisAsm
                         byte value = m_buffer[i];
                         for (int j = 0; j < repeat; j++)
                         {
-                            m_memory[offset] = value;
+                            page[offset] = value;
                             offset++;
                         }
                     }
                     else
                     {
-                        m_memory[offset] = m_buffer[i];
+                        page[offset] = m_buffer[i];
                         offset++;
                     }
                 }
                 else
                 {
-                    m_memory[offset] = m_buffer[i];
+                    page[offset] = m_buffer[i];
                     offset++;
                 }
             }
         }
 
+        private byte[] DecodeBlock(byte[] block, int blockStartPos, int blockSize,  bool bCompression)
+        {
+
+            int offset = 0; 
+            byte[] pageRet = new byte[0x4000];
+
+            for (int i = blockStartPos; i < blockSize; i++)
+            {
+                //if (block[i] == 0x00 && block[i + 1] == 0xED && block[i + 2] == 0xED && block[i + 3] == 0x00)
+                //{
+                //    break;
+                //}
+
+                //if (i < block.Length - 4)
+                //{
+                    if (block[i] == 0xED && block[i + 1] == 0xED && bCompression)
+                    {
+                        i += 2;
+                        int repeat = block[i++];
+                        byte value = block[i];
+                        for (int j = 0; j < repeat; j++)
+                        {
+                            pageRet[offset] = value;
+                            offset++;
+                        }
+                    }
+                    else
+                    {
+                        pageRet[offset] = block[i];
+                        offset++;
+                    }
+                //}
+                //else
+                //{
+                //    pageRet[offset] = block[i];
+                //    offset++;
+                //}
+            }
+
+            return pageRet;
+        }
+
+
+
 
         private void ClearMemory()
         {
-            m_memory = new byte[49152]; // FOR 48K Spectrum ONLY.
+            page = new byte[49152]; // FOR 48K Spectrum ONLY.
         }
 
         private void LoadFile()
@@ -105,16 +152,94 @@ namespace ZxDisAsm
             m_header = (BasicFileHeader)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(BasicFileHeader));
             m_isCompressed = (m_header.Flags1 & 0x20) == 0x20;
 
+            //Размер uiExtBlockSize == 23 для версии 2, и 54 для версии 3
+            int uiExtBlockSize = m_buffer[31] << 8 | m_buffer[30];
 
+            int offset;
 
-            //m_memoryDataBlockStart = ;
-
-            if (m_header.PC != 0)
+            if (uiExtBlockSize == 23 || uiExtBlockSize == 54)
             {
-                m_memoryDataBlockStart = 30;
+                //Смещение 30 байт (разм. основ. блок + размер доп. блока + 2 байта (размер переменной uiExtBlockSize))
+                offset = 30 + uiExtBlockSize + sizeof(ushort);
+
+                int uiPC = m_buffer[33] << 8 | m_buffer[32];
+
+                //Программный счетчик
+                m_header.PC = (ushort)uiPC;
+
+                // Режим 
+                int Mode = m_buffer[34];
+
+
+                int pageBlockSize = m_buffer[offset + 1] << 8 | m_buffer[offset]; offset += 2;
+                int pageBlockNum = m_buffer[offset]; offset++;
+                byte[] page1 = DecodeBlock(m_buffer, offset, pageBlockSize, true); offset += pageBlockSize;
+
+                pageBlockSize = m_buffer[offset + 1] << 8 | m_buffer[offset]; offset += 2;
+                pageBlockNum = m_buffer[offset]; offset++;
+                byte[] page2 = DecodeBlock(m_buffer, offset, pageBlockSize, true); offset += pageBlockSize;
+
+                pageBlockSize = m_buffer[offset + 1] << 8 | m_buffer[offset]; offset += 2;
+                pageBlockNum = m_buffer[offset]; offset++;
+                byte[] page3 = DecodeBlock(m_buffer, offset, pageBlockSize, true); offset += pageBlockSize;
+
+
+                page = new byte[49152]; // FOR 48K Spectrum ONLY.
+
+                Buffer.BlockCopy(page1, 0, page, 0x4000, 0x4000);
+                Buffer.BlockCopy(page2, 0, page, 0x8000, 0x4000);
+                Buffer.BlockCopy(page3, 0, page, 0x0000, 0x4000);
+
+
+            }
+            else
+            {
+                offset = 30;
+                //m_memoryDataBlockStart = 30;
+                if (m_header.PC != 0)
+                {
+                    m_memoryDataBlockStart = 30;
+                }
+
+                ClearMemory();
+                Decompress();
+
             }
 
+
         }
+
+
+        public void GetSNA()
+        {
+
+            int offset = 0x00;
+
+            m_header.InterruptRegister = m_buffer[offset++];
+            m_header.HL_Dash = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
+            m_header.DE_Dash = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
+            m_header.BC_Dash = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
+            m_header.A_Dash = m_buffer[offset++];
+            m_header.F_Dash = m_buffer[offset++];
+            m_header.HL = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
+            m_header.DE = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
+            m_header.BC = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
+            m_header.IY = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
+            m_header.IX = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
+            m_header.InterruptFlipFlop = m_buffer[offset++];
+            m_header.RefreshRegister = m_buffer[offset++];
+            m_header.A = m_buffer[offset++];
+            m_header.F = m_buffer[offset++];
+            m_header.SP = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
+            m_header.Flags1 = m_buffer[offset++];
+            m_header.Flags2 = m_buffer[offset++];
+
+            page = new byte[0xC000];
+
+            Buffer.BlockCopy(m_buffer, offset, page, 0x0000, 0xC000);
+ 
+        }
+
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -122,10 +247,10 @@ namespace ZxDisAsm
     {
         public byte A;
         public byte F;
-        public UInt16 BC;
-        public UInt16 HL;
-        public UInt16 PC;
-        public UInt16 SP;
+        public ushort BC;
+        public ushort HL;
+        public ushort PC;
+        public ushort SP;
         public byte InterruptRegister;
         public byte RefreshRegister;
 
@@ -137,14 +262,14 @@ namespace ZxDisAsm
         /// Bit 6-7: No meaning
         /// </summary>
         public byte Flags1;
-        public UInt16 DE;
-        public UInt16 BC_Dash;
-        public UInt16 DE_Dash;
-        public UInt16 HL_Dash;
+        public ushort DE;
+        public ushort BC_Dash;
+        public ushort DE_Dash;
+        public ushort HL_Dash;
         public byte A_Dash;
         public byte F_Dash;
-        public UInt16 IY;
-        public UInt16 IX;
+        public ushort IY;
+        public ushort IX;
         public byte InterruptFlipFlop;
         public byte IFF2;
         public byte Flags2;

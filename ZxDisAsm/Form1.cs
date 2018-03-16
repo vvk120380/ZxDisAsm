@@ -76,6 +76,7 @@ namespace ZxDisAsm
             zx48 = new Zx48Machine();
             zx48.BorderEvent += new BorderEventHandler(BorderChange);
             zx48.VideoEvent += new VideoEventHandler(VideoChange);
+
             runZx48 = true;
             myThread = new Thread(new ParameterizedThreadStart(this.StartZX));
             myThread.Start(zx48);
@@ -117,7 +118,7 @@ namespace ZxDisAsm
                 zx48.Execute();
                 execTicks += (swInterrupt.ElapsedTicks - execTicksStart);
 
-                if (swRedraw.ElapsedMilliseconds > 40)
+                if (swRedraw.ElapsedMilliseconds > 20)
                 {
                     swRedraw.Restart();
                     runCount++;
@@ -300,7 +301,7 @@ namespace ZxDisAsm
         {
             switch (e.KeyCode)
             {
-                case Keys.ControlKey: zx48.port = 0xFEFE; zx48.key = 0xFE; zx48.keyBuff[0] ^= 0x01; break;
+                case Keys.Insert: zx48.port = 0xFEFE; zx48.key = 0xFE; zx48.keyBuff[0] ^= 0x01; break;
                 case Keys.Z: zx48.port = 0xFEFE; zx48.key = 0xFD; zx48.keyBuff[0] ^= 0x02; break;
                 case Keys.X: zx48.port = 0xFEFE; zx48.key = 0xFB; zx48.keyBuff[0] ^= 0x04; break;
                 case Keys.C: zx48.port = 0xFEFE; zx48.key = 0xF7; zx48.keyBuff[0] ^= 0x08; break;
@@ -358,7 +359,7 @@ namespace ZxDisAsm
         {
             switch (e.KeyCode)
             {
-                case Keys.ControlKey: zx48.port = 0xFEFE; zx48.key = 0xFE; zx48.keyBuff[0] |= 0x01; break;
+                case Keys.Insert: zx48.port = 0xFEFE; zx48.key = 0xFE; zx48.keyBuff[0] |= 0x01; break;
                 case Keys.Z: zx48.port = 0xFEFE; zx48.key = 0xFD; zx48.keyBuff[0] |= 0x02; break;
                 case Keys.X: zx48.port = 0xFEFE; zx48.key = 0xFB; zx48.keyBuff[0] |= 0x04; break;
                 case Keys.C: zx48.port = 0xFEFE; zx48.key = 0xF7; zx48.keyBuff[0] |= 0x08; break;
@@ -414,7 +415,7 @@ namespace ZxDisAsm
 
         private void toolStripButton1_Click(object sender, EventArgs e)
         {
-            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\NetherEarth.z80";
+            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\NE.sna";
             Z80Reader zx80Reader = new Z80Reader();
             zx80Reader.Read(path);
 
