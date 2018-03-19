@@ -912,8 +912,8 @@ namespace ZxDisAsm
             return (byte)reg;
         }
 
-        public ushort port = 0x00;
-        public byte key = 0x00;
+        //public ushort port = 0x00;
+        //public byte key = 0x00;
 
         public void DAA()
         {

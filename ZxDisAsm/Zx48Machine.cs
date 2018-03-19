@@ -19,7 +19,10 @@ namespace ZxDisAsm
         }
     }
 
-    public delegate void BorderEventHandler(object sender, BorderEventArgs e);
+    public delegate byte KeyboardEventHandler(ushort addr);
+
+
+    public delegate void BorderEventHandler(BorderEventArgs e);
 
     public class VideoEventArgs : EventArgs
     {
@@ -33,7 +36,7 @@ namespace ZxDisAsm
         }
     }
 
-    public delegate void VideoEventHandler(object sender, VideoEventArgs e);
+    public delegate void VideoEventHandler(VideoEventArgs e);
 
 
     public partial class Zx48Machine : Z80Core
@@ -43,27 +46,40 @@ namespace ZxDisAsm
 
         public event VideoEventHandler VideoEvent;
 
+        public event KeyboardEventHandler KeybEvent;
+
         protected virtual void OnBorderEvent(BorderEventArgs e)
         {
             if (BorderEvent != null)
-                BorderEvent.BeginInvoke(this, new BorderEventArgs(e.BorderColor), null, null);
+                BorderEvent.BeginInvoke(new BorderEventArgs(e.BorderColor), null, null);
         }
 
         protected virtual void OnVideoEvent(VideoEventArgs e)
         {
             if (VideoEvent != null)
-                VideoEvent.BeginInvoke(this, new VideoEventArgs(e.VideoRAM, e.AttrRAM), null, null);
+                VideoEvent.BeginInvoke(new VideoEventArgs(e.VideoRAM, e.AttrRAM), null, null);
         }
+
+        protected virtual byte OnKeybEvent(ushort addr)
+        {
+            if (KeybEvent != null)
+            { 
+                IAsyncResult asyncResult = KeybEvent.BeginInvoke(addr, null, null);
+                return (KeybEvent.EndInvoke(asyncResult));
+            }
+            return 0xFF;
+        }
+
 
         public void SendVideoEvent()
         {
             OnVideoEvent(new VideoEventArgs(GetVideoRAM(), GetAttRAM()));
         }
 
-        public void SendBorder()
-        {
-            OnBorderEvent(new BorderEventArgs((byte)(border & 0x07)));
-        }
+        //public void SendBorder()
+        //{
+        //    OnBorderEvent(new BorderEventArgs((byte)(border & 0x07)));
+        //}
 
         //port = A0..A7  + A8..A15 line of address bus
         public byte In()
@@ -83,9 +99,12 @@ namespace ZxDisAsm
         //port = A0..A7  + A8..A15 line of address bus
         public byte In(ushort addr)
         {
+            //return OnKeybEvent(addr);
+
             byte retByte = 0xFF;
             switch (addr)
             {
+                //Клавиатура -----------------------------
                 case 0xFEFE: retByte = keyBuff[0]; break;
                 case 0xFDFE: retByte = keyBuff[1]; break;
                 case 0xFBFE: retByte = keyBuff[2]; break;
@@ -93,9 +112,21 @@ namespace ZxDisAsm
                 case 0xEFFE: retByte = keyBuff[4]; break;
                 case 0xDFFE: retByte = keyBuff[5]; break;
                 case 0xBFFE: retByte = keyBuff[6]; break;
-                case 0x7FFE: retByte = keyBuff[7]; break;
-                default: {retByte = 0xFF; break;}
+                case 0x7FFE: retByte = keyBuff[7]; break; 
+                // ---------------------------------------
+
+                // Ммкродрав -----------------------------
+                case 0xE7FE: retByte = 0x00; break;
+                // ---------------------------------------
+
+                default: { retByte = 0xFF; break; }
             }
+
+            if ((addr & 0xFF) == 0xF1 || (addr >> 8 & 0xFF) == 0xF1)
+            {
+                Console.WriteLine("");
+            }
+
             return retByte;
         }
 

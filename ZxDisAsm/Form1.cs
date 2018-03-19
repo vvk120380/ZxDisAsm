@@ -23,13 +23,15 @@ namespace ZxDisAsm
         Color borderColor;
         bool canRedraw = true;
 
+        //public byte[] keyBuff = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
         const int dXOffset = 32;
         const int dYOffset = 32;
         const int scr_size_x = 320;
         const int scr_size_y = 256;
 
         Color[] ZxColor = { Color.Black, Color.Blue, Color.Red, Color.Magenta, Color.Green, Color.Cyan, Color.Yellow, Color.White };
-        Color[] ZxColorLight = { Color.FromArgb(0, 50, 50, 50), Color.LightBlue, Color.FromArgb(0, 255, 59, 59), Color.FromArgb(0, 255, 77, 255), Color.LightGreen, Color.LightCyan, Color.LightYellow, Color.LightGray };
+        Color[] ZxColorLight = { Color.Black, Color.Blue, Color.Red, Color.Magenta, Color.Green, Color.Cyan, Color.Yellow, Color.White };//{ Color.FromArgb(0, 50, 50, 50), Color.LightBlue, Color.FromArgb(0, 255, 59, 59), Color.FromArgb(0, 255, 77, 255), Color.LightGreen, Color.LightCyan, Color.LightYellow, Color.LightGray };
 
         bool flash = false;
 
@@ -49,7 +51,7 @@ namespace ZxDisAsm
             //progressBorder = new Progress<ProgessRetBorder>(s => { RedrawBorder(gForm, s.border); });
         }
 
-        async private void button1_Click(object sender, EventArgs e)
+        private void button1_Click(object sender, EventArgs e)
         {
 
             //if (Worker.run)
@@ -76,17 +78,17 @@ namespace ZxDisAsm
             zx48 = new Zx48Machine();
             zx48.BorderEvent += new BorderEventHandler(BorderChange);
             zx48.VideoEvent += new VideoEventHandler(VideoChange);
+            zx48.KeybEvent += new KeyboardEventHandler(KeyboardChange);
 
             runZx48 = true;
             myThread = new Thread(new ParameterizedThreadStart(this.StartZX));
-            myThread.Start(zx48);
             myThread.Priority = ThreadPriority.Highest;
-
+            myThread.IsBackground = false;
+            myThread.Start(zx48);         
         }
 
         public void StartZX(object obj)
         {
-
 
             Zx48Machine zx48 = (Zx48Machine)obj;
 
@@ -164,19 +166,37 @@ namespace ZxDisAsm
         }
 
 
-        private void BorderChange(object sender, BorderEventArgs e)
+        private void BorderChange(BorderEventArgs e)
         {
             borderColor = ZxColor[e.BorderColor];
         }
 
-        private void VideoChange(object sender, VideoEventArgs e)
+        private void VideoChange(VideoEventArgs e)
         {
             if (!canRedraw) return;
             canRedraw = false;
             RedrawScreen(gForm, e.VideoRAM, e.AttrRAM);            
         }
 
-        int[] scr_ypoz = {  0,8,16,24,32,40,48,56,
+        private byte KeyboardChange(ushort addr)
+        {
+            byte retByte = 0xFF;
+            switch (addr)
+            {
+                //case 0xFEFE: retByte = keyBuff[0]; break;
+                //case 0xFDFE: retByte = keyBuff[1]; break;
+                //case 0xFBFE: retByte = keyBuff[2]; break;
+                //case 0xF7FE: retByte = keyBuff[3]; break;
+                //case 0xEFFE: retByte = keyBuff[4]; break;
+                //case 0xDFFE: retByte = keyBuff[5]; break;
+                //case 0xBFFE: retByte = keyBuff[6]; break;
+                //case 0x7FFE: retByte = keyBuff[7]; break;
+                default: { retByte = 0xFF; break; }
+            }
+            return retByte;
+        }
+
+            int[] scr_ypoz = {  0,8,16,24,32,40,48,56,
                             1,9,17,25,33,41,49,57,
                             2,10,18,26,34,42,50,58,
                             3,11,19,27,35,43,51,59,
@@ -299,123 +319,127 @@ namespace ZxDisAsm
 
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
+
             switch (e.KeyCode)
             {
-                case Keys.Insert: zx48.port = 0xFEFE; zx48.key = 0xFE; zx48.keyBuff[0] ^= 0x01; break;
-                case Keys.Z: zx48.port = 0xFEFE; zx48.key = 0xFD; zx48.keyBuff[0] ^= 0x02; break;
-                case Keys.X: zx48.port = 0xFEFE; zx48.key = 0xFB; zx48.keyBuff[0] ^= 0x04; break;
-                case Keys.C: zx48.port = 0xFEFE; zx48.key = 0xF7; zx48.keyBuff[0] ^= 0x08; break;
-                case Keys.V: zx48.port = 0xFEFE; zx48.key = 0xEF; zx48.keyBuff[0] ^= 0x10; break;
+                case Keys.ControlKey: zx48.keyBuff[0] ^= 0x01; break;
+                case Keys.Control: zx48.keyBuff[0] ^= 0x01; break;
+                case Keys.Z: zx48.keyBuff[0] ^= 0x02; break;
+                case Keys.X: zx48.keyBuff[0] ^= 0x04; break;
+                case Keys.C: zx48.keyBuff[0] ^= 0x08; break;
+                case Keys.V: zx48.keyBuff[0] ^= 0x10; break;
 
-                case Keys.A: zx48.port = 0xFDFE; zx48.key = 0xFE; zx48.keyBuff[1] ^= 0x01; break;
-                case Keys.S: zx48.port = 0xFDFE; zx48.key = 0xFD; zx48.keyBuff[1] ^= 0x02; break;
-                case Keys.D: zx48.port = 0xFDFE; zx48.key = 0xFB; zx48.keyBuff[1] ^= 0x04; break;
-                case Keys.F: zx48.port = 0xFDFE; zx48.key = 0xF7; zx48.keyBuff[1] ^= 0x08; break;
-                case Keys.G: zx48.port = 0xFDFE; zx48.key = 0xEF; zx48.keyBuff[1] ^= 0x10; break;
+                case Keys.A: zx48.keyBuff[1] ^= 0x01; break;
+                case Keys.S: zx48.keyBuff[1] ^= 0x02; break;
+                case Keys.D: zx48.keyBuff[1] ^= 0x04; break;
+                case Keys.F: zx48.keyBuff[1] ^= 0x08; break;
+                case Keys.G: zx48.keyBuff[1] ^= 0x10; break;
 
-                case Keys.Q: zx48.port = 0xFBFE; zx48.key = 0xFE; zx48.keyBuff[2] ^= 0x01; break;
-                case Keys.W: zx48.port = 0xFBFE; zx48.key = 0xFD; zx48.keyBuff[2] ^= 0x02; break;
-                case Keys.E: zx48.port = 0xFBFE; zx48.key = 0xFB; zx48.keyBuff[2] ^= 0x04; break;
-                case Keys.R: zx48.port = 0xFBFE; zx48.key = 0xF7; zx48.keyBuff[2] ^= 0x08; break;
-                case Keys.T: zx48.port = 0xFBFE; zx48.key = 0xEF; zx48.keyBuff[2] ^= 0x10; break;
+                case Keys.Q: zx48.keyBuff[2] ^= 0x01; break;
+                case Keys.W: zx48.keyBuff[2] ^= 0x02; break;
+                case Keys.E: zx48.keyBuff[2] ^= 0x04; break;
+                case Keys.R: zx48.keyBuff[2] ^= 0x08; break;
+                case Keys.T: zx48.keyBuff[2] ^= 0x10; break;
 
-                case Keys.D1: zx48.port = 0xF7FE; zx48.key = 0xFE; zx48.keyBuff[3] ^= 0x01; break;
-                case Keys.D2: zx48.port = 0xF7FE; zx48.key = 0xFD; zx48.keyBuff[3] ^= 0x02; break;
-                case Keys.D3: zx48.port = 0xF7FE; zx48.key = 0xFB; zx48.keyBuff[3] ^= 0x04; break;
-                case Keys.D4: zx48.port = 0xF7FE; zx48.key = 0xF7; zx48.keyBuff[3] ^= 0x08; break;
-                case Keys.D5: zx48.port = 0xF7FE; zx48.key = 0xEF; zx48.keyBuff[3] ^= 0x10; break;
+                case Keys.D1: zx48.keyBuff[3] ^= 0x01; break;
+                case Keys.D2: zx48.keyBuff[3] ^= 0x02; break;
+                case Keys.D3: zx48.keyBuff[3] ^= 0x04; break;
+                case Keys.D4: zx48.keyBuff[3] ^= 0x08; break;
+                case Keys.D5: zx48.keyBuff[3] ^= 0x10; break;
 
-                case Keys.D0: zx48.port = 0xEFFE; zx48.key = 0xFE; zx48.keyBuff[4] ^= 0x01; break;
-                case Keys.D9: zx48.port = 0xEFFE; zx48.key = 0xFD; zx48.keyBuff[4] ^= 0x02; break;
-                case Keys.D8: zx48.port = 0xEFFE; zx48.key = 0xFB; zx48.keyBuff[4] ^= 0x04; break;
-                case Keys.D7: zx48.port = 0xEFFE; zx48.key = 0xF7; zx48.keyBuff[4] ^= 0x08; break;
-                case Keys.D6: zx48.port = 0xEFFE; zx48.key = 0xEF; zx48.keyBuff[4] ^= 0x10; break;
+                case Keys.D0: zx48.keyBuff[4] ^= 0x01; break;
+                case Keys.D9: zx48.keyBuff[4] ^= 0x02; break;
+                case Keys.D8: zx48.keyBuff[4] ^= 0x04; break;
+                case Keys.D7: zx48.keyBuff[4] ^= 0x08; break;
+                case Keys.D6: zx48.keyBuff[4] ^= 0x10; break;
 
-                case Keys.P: zx48.port = 0xDFFE; zx48.key = 0xFE; zx48.keyBuff[5] ^= 0x01; break;
-                case Keys.O: zx48.port = 0xDFFE; zx48.key = 0xFD; zx48.keyBuff[5] ^= 0x02; break;
-                case Keys.I: zx48.port = 0xDFFE; zx48.key = 0xFB; zx48.keyBuff[5] ^= 0x04; break;
-                case Keys.U: zx48.port = 0xDFFE; zx48.key = 0xF7; zx48.keyBuff[5] ^= 0x08; break;
-                case Keys.Y: zx48.port = 0xDFFE; zx48.key = 0xEF; zx48.keyBuff[5] ^= 0x10; break;
+                case Keys.P: zx48.keyBuff[5] ^= 0x01; break;
+                case Keys.O: zx48.keyBuff[5] ^= 0x02; break;
+                case Keys.I: zx48.keyBuff[5] ^= 0x04; break;
+                case Keys.U: zx48.keyBuff[5] ^= 0x08; break;
+                case Keys.Y: zx48.keyBuff[5] ^= 0x10; break;
 
-                case Keys.Enter: zx48.port = 0xBFFE; zx48.key = 0xFE; zx48.keyBuff[6] ^= 0x01; break;
-                case Keys.L: zx48.port = 0xBFFE; zx48.key = 0xFD; zx48.keyBuff[6] ^= 0x02; break;
-                case Keys.K: zx48.port = 0xBFFE; zx48.key = 0xFB; zx48.keyBuff[6] ^= 0x04; break;
-                case Keys.J: zx48.port = 0xBFFE; zx48.key = 0xF7; zx48.keyBuff[6] ^= 0x08; break;
-                case Keys.H: zx48.port = 0xBFFE; zx48.key = 0xEF; zx48.keyBuff[6] ^= 0x10; break;
+                case Keys.Enter: zx48.keyBuff[6] ^= 0x01; break;
+                case Keys.L: zx48.keyBuff[6] ^= 0x02; break;
+                case Keys.K: zx48.keyBuff[6] ^= 0x04; break;
+                case Keys.J: zx48.keyBuff[6] ^= 0x08; break;
+                case Keys.H: zx48.keyBuff[6] ^= 0x10; break;
 
-                case Keys.Space: zx48.port = 0x7FFE; zx48.key = 0xFE; zx48.keyBuff[7] ^= 0x01; break;
-                case Keys.ShiftKey: zx48.port = 0x7FFE; zx48.key = 0xFD; zx48.keyBuff[7] ^= 0x02; break;
-                case Keys.M: zx48.port = 0x7FFE; zx48.key = 0xFB; zx48.keyBuff[7] ^= 0x04; break;
-                case Keys.N: zx48.port = 0x7FFE; zx48.key = 0xF7; zx48.keyBuff[7] ^= 0x08; break;
-                case Keys.B: zx48.port = 0x7FFE; zx48.key = 0xEF; zx48.keyBuff[7] ^= 0x10; break;
+                case Keys.Space: zx48.keyBuff[7] ^= 0x01; break;
+                case Keys.ShiftKey: zx48.keyBuff[7] ^= 0x02; break;
+                case Keys.Shift: zx48.keyBuff[7] ^= 0x02; break;
+                case Keys.M: zx48.keyBuff[7] ^= 0x04; break;
+                case Keys.N: zx48.keyBuff[7] ^= 0x08; break;
+                case Keys.B: zx48.keyBuff[7] ^= 0x10; break;
 
                 default:
                     break;
             }
-
         }
 
         private void Form1_KeyUp(object sender, KeyEventArgs e)
         {
+
             switch (e.KeyCode)
             {
-                case Keys.Insert: zx48.port = 0xFEFE; zx48.key = 0xFE; zx48.keyBuff[0] |= 0x01; break;
-                case Keys.Z: zx48.port = 0xFEFE; zx48.key = 0xFD; zx48.keyBuff[0] |= 0x02; break;
-                case Keys.X: zx48.port = 0xFEFE; zx48.key = 0xFB; zx48.keyBuff[0] |= 0x04; break;
-                case Keys.C: zx48.port = 0xFEFE; zx48.key = 0xF7; zx48.keyBuff[0] |= 0x08; break;
-                case Keys.V: zx48.port = 0xFEFE; zx48.key = 0xEF; zx48.keyBuff[0] |= 0x10; break;
+                case Keys.ControlKey: zx48.keyBuff[0] |= 0x01; break;
+                case Keys.Control: zx48.keyBuff[0] |= 0x01; break;
+                case Keys.Z: zx48.keyBuff[0] |= 0x02; break;
+                case Keys.X: zx48.keyBuff[0] |= 0x04; break;
+                case Keys.C: zx48.keyBuff[0] |= 0x08; break;
+                case Keys.V: zx48.keyBuff[0] |= 0x10; break;
 
-                case Keys.A: zx48.port = 0xFDFE; zx48.key = 0xFE; zx48.keyBuff[1] |= 0x01; break;
-                case Keys.S: zx48.port = 0xFDFE; zx48.key = 0xFD; zx48.keyBuff[1] |= 0x02; break;
-                case Keys.D: zx48.port = 0xFDFE; zx48.key = 0xFB; zx48.keyBuff[1] |= 0x04; break;
-                case Keys.F: zx48.port = 0xFDFE; zx48.key = 0xF7; zx48.keyBuff[1] |= 0x08; break;
-                case Keys.G: zx48.port = 0xFDFE; zx48.key = 0xEF; zx48.keyBuff[1] |= 0x10; break;
+                case Keys.A: zx48.keyBuff[1] |= 0x01; break;
+                case Keys.S: zx48.keyBuff[1] |= 0x02; break;
+                case Keys.D: zx48.keyBuff[1] |= 0x04; break;
+                case Keys.F: zx48.keyBuff[1] |= 0x08; break;
+                case Keys.G: zx48.keyBuff[1] |= 0x10; break;
 
-                case Keys.Q: zx48.port = 0xFBFE; zx48.key = 0xFE; zx48.keyBuff[2] |= 0x01; break;
-                case Keys.W: zx48.port = 0xFBFE; zx48.key = 0xFD; zx48.keyBuff[2] |= 0x02; break;
-                case Keys.E: zx48.port = 0xFBFE; zx48.key = 0xFB; zx48.keyBuff[2] |= 0x04; break;
-                case Keys.R: zx48.port = 0xFBFE; zx48.key = 0xF7; zx48.keyBuff[2] |= 0x08; break;
-                case Keys.T: zx48.port = 0xFBFE; zx48.key = 0xEF; zx48.keyBuff[2] |= 0x10; break;
+                case Keys.Q: zx48.keyBuff[2] |= 0x01; break;
+                case Keys.W: zx48.keyBuff[2] |= 0x02; break;
+                case Keys.E: zx48.keyBuff[2] |= 0x04; break;
+                case Keys.R: zx48.keyBuff[2] |= 0x08; break;
+                case Keys.T: zx48.keyBuff[2] |= 0x10; break;
 
-                case Keys.D1: zx48.port = 0xF7FE; zx48.key = 0xFE; zx48.keyBuff[3] |= 0x01; break;
-                case Keys.D2: zx48.port = 0xF7FE; zx48.key = 0xFD; zx48.keyBuff[3] |= 0x02; break;
-                case Keys.D3: zx48.port = 0xF7FE; zx48.key = 0xFB; zx48.keyBuff[3] |= 0x04; break;
-                case Keys.D4: zx48.port = 0xF7FE; zx48.key = 0xF7; zx48.keyBuff[3] |= 0x08; break;
-                case Keys.D5: zx48.port = 0xF7FE; zx48.key = 0xEF; zx48.keyBuff[3] |= 0x10; break;
+                case Keys.D1: zx48.keyBuff[3] |= 0x01; break;
+                case Keys.D2: zx48.keyBuff[3] |= 0x02; break;
+                case Keys.D3: zx48.keyBuff[3] |= 0x04; break;
+                case Keys.D4: zx48.keyBuff[3] |= 0x08; break;
+                case Keys.D5: zx48.keyBuff[3] |= 0x10; break;
 
-                case Keys.D0: zx48.port = 0xEFFE; zx48.key = 0xFE; zx48.keyBuff[4] |= 0x01; break;
-                case Keys.D9: zx48.port = 0xEFFE; zx48.key = 0xFD; zx48.keyBuff[4] |= 0x02; break;
-                case Keys.D8: zx48.port = 0xEFFE; zx48.key = 0xFB; zx48.keyBuff[4] |= 0x04; break;
-                case Keys.D7: zx48.port = 0xEFFE; zx48.key = 0xF7; zx48.keyBuff[4] |= 0x08; break;
-                case Keys.D6: zx48.port = 0xEFFE; zx48.key = 0xEF; zx48.keyBuff[4] |= 0x10; break;
+                case Keys.D0: zx48.keyBuff[4] |= 0x01; break;
+                case Keys.D9: zx48.keyBuff[4] |= 0x02; break;
+                case Keys.D8: zx48.keyBuff[4] |= 0x04; break;
+                case Keys.D7: zx48.keyBuff[4] |= 0x08; break;
+                case Keys.D6: zx48.keyBuff[4] |= 0x10; break;
 
-                case Keys.P: zx48.port = 0xDFFE; zx48.key = 0xFE; zx48.keyBuff[5] |= 0x01; break;
-                case Keys.O: zx48.port = 0xDFFE; zx48.key = 0xFD; zx48.keyBuff[5] |= 0x02; break;
-                case Keys.I: zx48.port = 0xDFFE; zx48.key = 0xFB; zx48.keyBuff[5] |= 0x04; break;
-                case Keys.U: zx48.port = 0xDFFE; zx48.key = 0xF7; zx48.keyBuff[5] |= 0x08; break;
-                case Keys.Y: zx48.port = 0xDFFE; zx48.key = 0xEF; zx48.keyBuff[5] |= 0x10; break;
+                case Keys.P: zx48.keyBuff[5] |= 0x01; break;
+                case Keys.O: zx48.keyBuff[5] |= 0x02; break;
+                case Keys.I: zx48.keyBuff[5] |= 0x04; break;
+                case Keys.U: zx48.keyBuff[5] |= 0x08; break;
+                case Keys.Y: zx48.keyBuff[5] |= 0x10; break;
 
-                case Keys.Enter: zx48.port = 0xBFFE; zx48.key = 0xFE; zx48.keyBuff[6] |= 0x01; break;
-                case Keys.L: zx48.port = 0xBFFE; zx48.key = 0xFD; zx48.keyBuff[6] |= 0x02; break;
-                case Keys.K: zx48.port = 0xBFFE; zx48.key = 0xFB; zx48.keyBuff[6] |= 0x04; break;
-                case Keys.J: zx48.port = 0xBFFE; zx48.key = 0xF7; zx48.keyBuff[6] |= 0x08; break;
-                case Keys.H: zx48.port = 0xBFFE; zx48.key = 0xEF; zx48.keyBuff[6] |= 0x10; break;
+                case Keys.Enter: zx48.keyBuff[6] |= 0x01; break;
+                case Keys.L: zx48.keyBuff[6] |= 0x02; break;
+                case Keys.K: zx48.keyBuff[6] |= 0x04; break;
+                case Keys.J: zx48.keyBuff[6] |= 0x08; break;
+                case Keys.H: zx48.keyBuff[6] |= 0x10; break;
 
-                case Keys.Space: zx48.port = 0x7FFE; zx48.key = 0xFE; zx48.keyBuff[7] |= 0x01; break;
-                case Keys.ShiftKey: zx48.port = 0x7FFE; zx48.key = 0xFD; zx48.keyBuff[7] |= 0x02; break;
-                case Keys.M: zx48.port = 0x7FFE; zx48.key = 0xFB; zx48.keyBuff[7] |= 0x04; break;
-                case Keys.N: zx48.port = 0x7FFE; zx48.key = 0xF7; zx48.keyBuff[7] |= 0x08; break;
-                case Keys.B: zx48.port = 0x7FFE; zx48.key = 0xEF; zx48.keyBuff[7] |= 0x10; break;
+                case Keys.Space: zx48.keyBuff[7] |= 0x01; break;
+                case Keys.ShiftKey: zx48.keyBuff[7] |= 0x02; break;
+                case Keys.Shift: zx48.keyBuff[7] |= 0x02; break;
+                case Keys.M: zx48.keyBuff[7] |= 0x04; break;
+                case Keys.N: zx48.keyBuff[7] |= 0x08; break;
+                case Keys.B: zx48.keyBuff[7] |= 0x10; break;
 
                 default:
                     break;
             }
-
         }
 
         private void toolStripButton1_Click(object sender, EventArgs e)
         {
-            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\NE.sna";
+            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\123.sna";
             Z80Reader zx80Reader = new Z80Reader();
             zx80Reader.Read(path);
 
@@ -424,71 +448,4 @@ namespace ZxDisAsm
 
     }
 
-    //public class Worker
-    //{
-    //    public static bool run;
-
-
-    //    public static void StartZX(IProgress<ProgessRet> progress, IProgress<ProgessRetBorder> progressBorder, Zx48Machine zx48)
-    //    {
-    //        byte borderOld = 0x00;
-    //        run = true;
-    //        zx48.Reset();
-
-    //        Stopwatch swRedraw = new Stopwatch();
-    //        Stopwatch swInterrupt = new Stopwatch();
-    //        swRedraw.Restart();
-    //        swInterrupt.Restart();
-
-    //        while (run)
-    //        {
-    //            zx48.Execute();
-    //            if (swRedraw.ElapsedMilliseconds > 40)
-    //            {
-    //                progress.Report(new ProgessRet(zx48.GetVideoRAM(), zx48.GetAttRAM()));
-    //                swRedraw.Restart();
-    //            }
-
-    //            if (swInterrupt.ElapsedMilliseconds > 20) //50 раз в секунду
-    //            {
-    //                zx48.Interrupt = true;                        
-    //                swInterrupt.Restart();
-    //            }
-
-    //            if (borderOld != zx48.border)
-    //            {
-    //                progressBorder.Report(new ProgessRetBorder(zx48.border));
-    //                borderOld = zx48.border;
-    //            }
-
-    //        }
-
-
-    //    }
-    //}
-    //public class ProgessRet
-    //{
-
-    //    public ProgessRet(byte[] videoRam, byte[] attrRam)
-    //    {
-    //        this.videoRam = videoRam;
-    //        this.attrRam = attrRam;
-    //    }
-
-    //    public byte[] videoRam;
-    //    public byte[] attrRam;
-
-    //}
-
-    //public class ProgessRetBorder
-    //{
-
-    //    public ProgessRetBorder(byte border)
-    //    {
-    //        this.border = border;
-    //    }
-
-    //    public byte border;
-
-    //}
 }
