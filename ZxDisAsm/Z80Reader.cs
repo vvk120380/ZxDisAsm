@@ -37,8 +37,8 @@ namespace ZxDisAsm
 
             LoadFile();
             GetHeader();
-            ClearMemory();
-            Decompress();
+            //ClearMemory();
+            //Decompress();
 
             return true;
         }
@@ -87,14 +87,14 @@ namespace ZxDisAsm
             int offset = 0; 
             byte[] pageRet = new byte[0x4000];
 
-            for (int i = blockStartPos; i < blockSize; i++)
+            for (int i = blockStartPos; i < blockStartPos + blockSize; i++)
             {
                 //if (block[i] == 0x00 && block[i + 1] == 0xED && block[i + 2] == 0xED && block[i + 3] == 0x00)
                 //{
                 //    break;
                 //}
 
-                if (i < block.Length - 4)
+                if (i < blockStartPos + blockSize - 4)
                 {
                     if (block[i] == 0xED && block[i + 1] == 0xED && bCompression)
                     {
@@ -158,27 +158,23 @@ namespace ZxDisAsm
             {
                 //Смещение 30 байт (разм. основ. блок + размер доп. блока + 2 байта (размер переменной uiExtBlockSize))
                 offset = 30 + uiExtBlockSize + sizeof(ushort);
-
-                int uiPC = m_buffer[33] << 8 | m_buffer[32];
-
                 //Программный счетчик
-                //m_header.PC = (ushort)uiPC;
-
+                m_header.PC = (ushort)(m_buffer[33] << 8 | m_buffer[32]);
                 // Режим 
                 int Mode = m_buffer[34];
 
 
                 int pageBlockSize = m_buffer[offset + 1] << 8 | m_buffer[offset]; offset += 2;
                 int pageBlockNum = m_buffer[offset]; offset++;
-                byte[] page1 = DecodeBlock(m_buffer, offset, pageBlockSize, false); offset += pageBlockSize;
+                byte[] page1 = DecodeBlock(m_buffer, offset, pageBlockSize, true); offset += pageBlockSize;
 
                 pageBlockSize = m_buffer[offset + 1] << 8 | m_buffer[offset]; offset += 2;
                 pageBlockNum = m_buffer[offset]; offset++;
-                byte[] page2 = DecodeBlock(m_buffer, offset, pageBlockSize, false); offset += pageBlockSize;
+                byte[] page2 = DecodeBlock(m_buffer, offset, pageBlockSize, true); offset += pageBlockSize;
 
                 pageBlockSize = m_buffer[offset + 1] << 8 | m_buffer[offset]; offset += 2;
                 pageBlockNum = m_buffer[offset]; offset++;
-                byte[] page3 = DecodeBlock(m_buffer, offset, pageBlockSize, false); offset += pageBlockSize;
+                byte[] page3 = DecodeBlock(m_buffer, offset, pageBlockSize, true); offset += pageBlockSize;
 
 
                 page = new byte[0xC000]; // FOR 48K Spectrum ONLY.
@@ -217,8 +213,8 @@ namespace ZxDisAsm
         public ushort HL;
         public ushort PC;
         public ushort SP;
-        public byte InterruptRegister;
-        public byte RefreshRegister;
+        public byte I;
+        public byte R;
 
         /// <summary>
         /// Bit 0  : Bit 7 of the R-register
@@ -236,7 +232,7 @@ namespace ZxDisAsm
         public byte F_Dash;
         public ushort IY;
         public ushort IX;
-        public byte InterruptFlipFlop;
+        public byte DIEI;
         public byte IFF2;
         public byte Flags2;
     }

@@ -101,7 +101,7 @@ namespace ZxDisAsm
         {
             //return OnKeybEvent(addr);
 
-            byte retByte = 0xFF;
+            byte retByte = 0xFE;
             switch (addr)
             {
                 //Клавиатура -----------------------------
@@ -119,12 +119,7 @@ namespace ZxDisAsm
                 case 0xE7FE: retByte = 0x00; break;
                 // ---------------------------------------
 
-                default: { retByte = 0xFF; break; }
-            }
-
-            if ((addr & 0xFF) == 0xF1 || (addr >> 8 & 0xFF) == 0xF1)
-            {
-                Console.WriteLine("");
+                default: { retByte = 0xFE; break; }
             }
 
             return retByte;
@@ -204,45 +199,21 @@ namespace ZxDisAsm
             F_ = header.F_Dash;
             HL_ = header.HL_Dash;
             PC = header.PC;
-            I = header.InterruptRegister;
+            I = header.I;
             SP = header.SP;
+            R = header.R;
 
-            //lastOpcodeWasEI = 10;
-            //lastOpcodeWasEI = header.InterruptFlipFlop;
-            //if (header.InterruptFlipFlop == 0)
-            //{
-            //    IFF1 = true;
-            //    IFF2 = true;
-            //    lastOpcodeWasEI = header.InterruptFlipFlop;
-            //}
-            //else
-            //{
-            //    IFF1 = true;
-            //    IFF2 = true;
-            //    lastOpcodeWasEI = 1;
-            //}
-            IM2 = true;
 
-            //switch (header.Flags1)
-            //{
-            //    case 0: IM0 = true; break;
-            //    case 1: IM1 = true; break;
-            //    case 2: IM2 = true; break;
-            //}
-
-            IFF1 = true;
+            IFF1 = false;
             IFF2 = false;
+
             lastOpcodeWasEI = 0;
 
-            //PC = PopStack();
-            //IFF1 = IFF2;
+            IM2 = true;
 
-            //Out(0xFE, header.Flags2);
-
-            //IFF2 = true;
             Interrupt = false;
-
             pause = false;
+
         }
 
         public void SetSNAMemory(SNAFileHeader header, byte[] memory)
@@ -1789,7 +1760,7 @@ namespace ZxDisAsm
                                 {
                                     tmp8 = peek8(HL);
                                     poke8(DE, tmp8);
-                                    F_3 = (((tmp8 + A) & (int)flags.n3) != 0);
+                                    F_3 = ((tmp8 + A) & (int)flags.n3) != 0;
                                     F_5 = ((tmp8 + A) & (int)flags.N) != 0;
                                     F_NEG = false;
                                     F_HALF = false;

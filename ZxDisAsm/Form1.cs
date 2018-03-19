@@ -196,7 +196,7 @@ namespace ZxDisAsm
             return retByte;
         }
 
-            int[] scr_ypoz = {  0,8,16,24,32,40,48,56,
+       int[] scr_ypoz = {  0,8,16,24,32,40,48,56,
                             1,9,17,25,33,41,49,57,
                             2,10,18,26,34,42,50,58,
                             3,11,19,27,35,43,51,59,
@@ -445,7 +445,7 @@ namespace ZxDisAsm
             //zx48.SetSNAMemory(snaReader.GetHeader(), snaReader.GetMemory());
 
 
-            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\NetherEarth.z80";
+            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\NE.z80";
             Z80Reader z80Reader = new Z80Reader();
             z80Reader.Read(path);
             zx48.SetZ80Memory(z80Reader.Header, z80Reader.Memory);
