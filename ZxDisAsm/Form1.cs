@@ -439,11 +439,17 @@ namespace ZxDisAsm
 
         private void toolStripButton1_Click(object sender, EventArgs e)
         {
-            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\123.sna";
-            Z80Reader zx80Reader = new Z80Reader();
-            zx80Reader.Read(path);
+            //String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\123.sna";
+            //SNAReader snaReader = new SNAReader();
+            //if (!snaReader.Load(path)) MessageBox.Show("Ошибка загрузки данных");
+            //zx48.SetSNAMemory(snaReader.GetHeader(), snaReader.GetMemory());
 
-            zx48.SetMempory(zx80Reader.Memory, zx80Reader.Header);
+
+            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\NetherEarth.z80";
+            Z80Reader z80Reader = new Z80Reader();
+            z80Reader.Read(path);
+            zx48.SetZ80Memory(z80Reader.Header, z80Reader.Memory);
+
         }
 
     }

@@ -180,7 +180,7 @@ namespace ZxDisAsm
             return this.RAMAttr;
         }
 
-        public void SetMempory(byte[] memory, BasicFileHeader header)
+        public void SetZ80Memory(BasicFileHeader header, byte[] memory)
         {
 
             pause = true;
@@ -206,6 +206,7 @@ namespace ZxDisAsm
             PC = header.PC;
             I = header.InterruptRegister;
             SP = header.SP;
+
             //lastOpcodeWasEI = 10;
             //lastOpcodeWasEI = header.InterruptFlipFlop;
             //if (header.InterruptFlipFlop == 0)
@@ -220,9 +221,58 @@ namespace ZxDisAsm
             //    IFF2 = true;
             //    lastOpcodeWasEI = 1;
             //}
+            IM2 = true;
 
+            //switch (header.Flags1)
+            //{
+            //    case 0: IM0 = true; break;
+            //    case 1: IM1 = true; break;
+            //    case 2: IM2 = true; break;
+            //}
 
-            switch (header.Flags1)
+            IFF1 = true;
+            IFF2 = false;
+            lastOpcodeWasEI = 0;
+
+            //PC = PopStack();
+            //IFF1 = IFF2;
+
+            //Out(0xFE, header.Flags2);
+
+            //IFF2 = true;
+            Interrupt = false;
+
+            pause = false;
+        }
+
+        public void SetSNAMemory(SNAFileHeader header, byte[] memory)
+        {
+
+            pause = true;
+
+            while (!isPaused) { }
+
+            Buffer.BlockCopy(memory, 0, RAMDisp, 0, RAMDispSize);
+            Buffer.BlockCopy(memory, RAMDispSize, RAMAttr, 0, RAMAttrSize);
+            Buffer.BlockCopy(memory, RAMDispSize + RAMAttrSize, RAM, 0, RAMSize);
+
+            A = header.A;
+            BC = header.BC;
+            DE = header.DE;
+            F = header.F;
+            HL = header.HL;
+            IX = header.IX;
+            IY = header.IY;
+            A_ = header.A_Dash;
+            BC_ = header.BC_Dash;
+            DE_ = header.DE_Dash;
+            F_ = header.F_Dash;
+            HL_ = header.HL_Dash;
+            PC = header.PC;
+            I = header.I;
+            SP = header.SP;
+
+            switch (header.IM)
             {
                 case 0: IM0 = true; break;
                 case 1: IM1 = true; break;
@@ -236,13 +286,12 @@ namespace ZxDisAsm
             PC = PopStack();
             IFF1 = IFF2;
 
-            //Out(0xFE, header.Flags2);
-
-            //IFF2 = true;
             Interrupt = false;
-
             pause = false;
         }
+
+
+
 
         byte peek8(ushort addr)
         {

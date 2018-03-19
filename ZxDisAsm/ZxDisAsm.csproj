@@ -60,10 +60,11 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SNAReader.cs" />
     <Compile Include="Z80Core.cs" />
     <Compile Include="Zx48Machine.cs" />
     <Compile Include="Zx48Memory.cs" />
-    <Compile Include="Zx80Reader.cs" />
+    <Compile Include="Z80Reader.cs" />
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
     </EmbeddedResource>

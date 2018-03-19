@@ -36,12 +36,9 @@ namespace ZxDisAsm
             m_filename = _filename;
 
             LoadFile();
-
-            GetSNA();
-
-            //GetHeader();
-            //ClearMemory();
-            //Decompress();
+            GetHeader();
+            ClearMemory();
+            Decompress();
 
             return true;
         }
@@ -97,8 +94,8 @@ namespace ZxDisAsm
                 //    break;
                 //}
 
-                //if (i < block.Length - 4)
-                //{
+                if (i < block.Length - 4)
+                {
                     if (block[i] == 0xED && block[i + 1] == 0xED && bCompression)
                     {
                         i += 2;
@@ -115,12 +112,12 @@ namespace ZxDisAsm
                         pageRet[offset] = block[i];
                         offset++;
                     }
-                //}
-                //else
-                //{
-                //    pageRet[offset] = block[i];
-                //    offset++;
-                //}
+                }
+                else
+                {
+                    pageRet[offset] = block[i];
+                    offset++;
+                }
             }
 
             return pageRet;
@@ -165,7 +162,7 @@ namespace ZxDisAsm
                 int uiPC = m_buffer[33] << 8 | m_buffer[32];
 
                 //Программный счетчик
-                m_header.PC = (ushort)uiPC;
+                //m_header.PC = (ushort)uiPC;
 
                 // Режим 
                 int Mode = m_buffer[34];
@@ -173,18 +170,18 @@ namespace ZxDisAsm
 
                 int pageBlockSize = m_buffer[offset + 1] << 8 | m_buffer[offset]; offset += 2;
                 int pageBlockNum = m_buffer[offset]; offset++;
-                byte[] page1 = DecodeBlock(m_buffer, offset, pageBlockSize, true); offset += pageBlockSize;
+                byte[] page1 = DecodeBlock(m_buffer, offset, pageBlockSize, false); offset += pageBlockSize;
 
                 pageBlockSize = m_buffer[offset + 1] << 8 | m_buffer[offset]; offset += 2;
                 pageBlockNum = m_buffer[offset]; offset++;
-                byte[] page2 = DecodeBlock(m_buffer, offset, pageBlockSize, true); offset += pageBlockSize;
+                byte[] page2 = DecodeBlock(m_buffer, offset, pageBlockSize, false); offset += pageBlockSize;
 
                 pageBlockSize = m_buffer[offset + 1] << 8 | m_buffer[offset]; offset += 2;
                 pageBlockNum = m_buffer[offset]; offset++;
-                byte[] page3 = DecodeBlock(m_buffer, offset, pageBlockSize, true); offset += pageBlockSize;
+                byte[] page3 = DecodeBlock(m_buffer, offset, pageBlockSize, false); offset += pageBlockSize;
 
 
-                page = new byte[49152]; // FOR 48K Spectrum ONLY.
+                page = new byte[0xC000]; // FOR 48K Spectrum ONLY.
 
                 Buffer.BlockCopy(page1, 0, page, 0x4000, 0x4000);
                 Buffer.BlockCopy(page2, 0, page, 0x8000, 0x4000);
@@ -207,37 +204,6 @@ namespace ZxDisAsm
             }
 
 
-        }
-
-
-        public void GetSNA()
-        {
-
-            int offset = 0x00;
-
-            m_header.InterruptRegister = m_buffer[offset++];
-            m_header.HL_Dash = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
-            m_header.DE_Dash = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
-            m_header.BC_Dash = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
-            m_header.A_Dash = m_buffer[offset++];
-            m_header.F_Dash = m_buffer[offset++];
-            m_header.HL = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
-            m_header.DE = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
-            m_header.BC = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
-            m_header.IY = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
-            m_header.IX = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
-            m_header.InterruptFlipFlop = m_buffer[offset++];
-            m_header.RefreshRegister = m_buffer[offset++];
-            m_header.A = m_buffer[offset++];
-            m_header.F = m_buffer[offset++];
-            m_header.SP = (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]); offset += 2;
-            m_header.Flags1 = m_buffer[offset++];
-            m_header.Flags2 = m_buffer[offset++];
-
-            page = new byte[0xC000];
-
-            Buffer.BlockCopy(m_buffer, offset, page, 0x0000, 0xC000);
- 
         }
 
     }
