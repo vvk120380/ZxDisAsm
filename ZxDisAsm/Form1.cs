@@ -439,17 +439,37 @@ namespace ZxDisAsm
 
         private void toolStripButton1_Click(object sender, EventArgs e)
         {
-            //String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\123.sna";
-            //SNAReader snaReader = new SNAReader();
-            //if (!snaReader.Load(path)) MessageBox.Show("Ошибка загрузки данных");
-            //zx48.SetSNAMemory(snaReader.GetHeader(), snaReader.GetMemory());
+
+            OpenFileDialog ofd = new OpenFileDialog();
+
+            ofd.InitialDirectory = "c:\\";
+            ofd.Filter = "z80 files (*.z80)|*.z80|sna files (*.sna)|*.sna";
+            ofd.FilterIndex = 1;
+            ofd.RestoreDirectory = true;
+
+            if (ofd.ShowDialog() != DialogResult.OK) return;
 
 
-            String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\NE.z80";
-            Z80Reader z80Reader = new Z80Reader();
-            z80Reader.Read(path);
-            zx48.SetZ80Memory(z80Reader.Header, z80Reader.Memory);
+            if (ofd.FilterIndex == 1)
+            {
+                //String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\123.sna";
+                //SNAReader snaReader = new SNAReader();
+                //if (!snaReader.Load(path)) MessageBox.Show("Ошибка загрузки данных");
+                //zx48.SetSNAMemory(snaReader.GetHeader(), snaReader.GetMemory());
 
+
+                //String path = @"c:\Coding\ZxDisAsm\ZxDisAsm\Games\+NetherEarth.z80";
+
+                Z80Reader z80Reader = new Z80Reader();
+                z80Reader.Read(ofd.FileName);
+                zx48.SetZ80Memory(z80Reader.Header, z80Reader.Memory);
+            }
+            else
+            {
+                SNAReader snaReader = new SNAReader();
+                if (!snaReader.Load(ofd.FileName)) MessageBox.Show("Ошибка загрузки данных");
+                zx48.SetSNAMemory(snaReader.GetHeader(), snaReader.GetMemory());
+            }
         }
 
     }

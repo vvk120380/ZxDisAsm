@@ -101,7 +101,7 @@ namespace ZxDisAsm
         {
             //return OnKeybEvent(addr);
 
-            byte retByte = 0xFE;
+            byte retByte = 0xFF;
             switch (addr)
             {
                 //Клавиатура -----------------------------
@@ -116,10 +116,21 @@ namespace ZxDisAsm
                 // ---------------------------------------
 
                 // Ммкродрав -----------------------------
-                case 0xE7FE: retByte = 0x00; break;
+                case 0xE7FE:
+                    {
+                        retByte = 0x00;
+                        break;
+                    }
                 // ---------------------------------------
+                case 0x7FFB:
+                    {
+                        retByte = 0xFF;
+                        break;
+                    }
 
-                default: { retByte = 0xFE; break; }
+                default: {
+                        retByte = 0xFE; break;
+                    }
             }
 
             return retByte;
@@ -202,14 +213,17 @@ namespace ZxDisAsm
             I = header.I;
             SP = header.SP;
             R = header.R;
+            IFF1 = header.IFF1;
+            IFF2 = header.IFF2;
 
-
-            IFF1 = false;
-            IFF2 = false;
+            switch (header.IM)
+            {
+                case 0x00: IM0 = true; break;
+                case 0x01: IM1 = true; break;
+                case 0x02: IM2 = true; break;
+            }
 
             lastOpcodeWasEI = 0;
-
-            IM2 = true;
 
             Interrupt = false;
             pause = false;
@@ -792,10 +806,13 @@ namespace ZxDisAsm
                     }
 
 
+                #region 0xDD
 
                 case 0xDD:
                     {
+                        R++;
                         opcode = next8();
+
                         switch (opcode)
                         {
                             //Команды загрузки 8-битного регистра непосредственным 8-битным значением
@@ -870,7 +887,7 @@ namespace ZxDisAsm
                             //Команды инкремента 8-битного значения в памяти по адресу в индексном регистре (со смещением)
                             case 0x34: { int offset = (IX + GetDisplacement(next8())); poke8((ushort)offset, Inc(peek8((ushort)offset))); MemPtr = offset; break; } //INC(IX + s)
                             //Команды инкремента значения 16 - битного регистра
-                            case 0x03: { IX++; break; } //INC IX
+                            case 0x23: { IX++; break; } //INC IX
                             //Команды сложения значения аккумулятора со значением 8-битного регистра с учетом флага переноса
                             case 0x8C: { Adc_R(IXH); break; } //ADC A,IXH
                             case 0x8D: { Adc_R(IXL); break; } //ADC A,IXL
@@ -885,7 +902,13 @@ namespace ZxDisAsm
                             case 0x25: { IXH = Dec_R(IXH); break; } //DEC IXH
                             case 0x2D: { IXL = Dec_R(IXL); break; } //DEC IXL
                             //Команды декремента 8-битного значения в памяти по адресу в индексном регистре (со смещением)
-                            case 0x35: { int offset = IX + GetDisplacement(next8()); poke8((ushort)offset, Dec_R(peek8((ushort)offset))); MemPtr = offset; break; } //DEC(IX + s)
+                            case 0x35:
+                                {
+                                    int offset = IX + GetDisplacement(next8());
+                                    poke8((ushort)offset, Dec_R(peek8((ushort)offset)));
+                                    MemPtr = offset;
+                                    break;
+                                } //DEC(IX + s)
                             //Команды декремента значения 16-битного регистра
                             case 0x2B: { IX--; break; } //DEC IX
                             //Команды вычитания значения 8-битного регистра из значения аккумулятора с учетом флага переноса
@@ -919,7 +942,9 @@ namespace ZxDisAsm
                             case 0xE5: { PushStack(IX); break; }  //PUSH IX
                             //Команды снятия значения 16-битной регистровой пары со стека
                             case 0xE1: { IX = PopStack(); break; } //POP IX
-                            
+
+
+                            #region 0xDD 0xCB
                             case 0xCB:
                                 {
                                     R++;
@@ -1219,11 +1244,16 @@ namespace ZxDisAsm
                                         case 0x7E: //BIT 7, (IX + d)  
                                         case 0x7F: //BIT 7, (IX + d)  
                                             { Bit_R(7, peek8((ushort)(IX + GetDisplacement(val8)))); break; } // BIT 7,(IX+s)
-
+                                        default:
+                                            {
+                                                break;
+                                            }
 
                                     }
                                     break;
                                 }
+                            #endregion
+
                             default:
                                 {
                                     break;
@@ -1232,7 +1262,9 @@ namespace ZxDisAsm
                         }
                         break;
                     }
+                #endregion
 
+                #region 0xFD
                 case 0xFD:
                     {
                         opcode = next8();
@@ -1311,7 +1343,7 @@ namespace ZxDisAsm
                             //Команды инкремента 8-битного значения в памяти по адресу в индексном регистре (со смещением)
                             case 0x34: { ushort addr = (ushort)(IY + GetDisplacement(next8())); poke8(addr, Inc(peek8(addr))); break; } //INC(IY + s)
                             //Команды инкремента значения 16 - битного регистра
-                            case 0x03: { IY++; break; } //INC IY
+                            case 0x23: { IY++; break; } //INC IY
                             //Команды сложения значения аккумулятора со значением 8-битного регистра с учетом флага переноса
                             case 0x8C: { Adc_R(IYH); break; } //ADC A,IYH
                             case 0x8D: { Adc_R(IYL); break; } //ADC A,IYL
@@ -1660,6 +1692,11 @@ namespace ZxDisAsm
                                         case 0x7E: //BIT 7, (IY + d)  
                                         case 0x7F: //BIT 7, (IY + d)  
                                             { Bit_R(7, peek8((ushort)(IY + GetDisplacement(val8)))); break; } // BIT 7,(IY+s)
+                                        default:
+                                            {
+                                                break;
+                                            }
+
                                     }
                                     break;
                                 }
@@ -1670,7 +1707,9 @@ namespace ZxDisAsm
                         }
                         break;
                     }
+                #endregion
 
+                #region 0xED
                 case 0xED:
                     {
                         opcode = next8();
@@ -2063,6 +2102,9 @@ namespace ZxDisAsm
                         break;
                     }
 
+                #endregion
+
+                #region 0xCB
                 case 0xCB:
                     {
                         opcode = next8();
@@ -2357,6 +2399,8 @@ namespace ZxDisAsm
 
                         break;
                     }
+
+                #endregion
 
                 default:
                     {

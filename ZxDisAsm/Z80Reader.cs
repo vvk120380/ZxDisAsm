@@ -49,10 +49,7 @@ namespace ZxDisAsm
             // TODO: It's 30 just now, but if this is v.2/3 of the file then it's not.. See docs.
             for (int i = m_memoryDataBlockStart; i < m_buffer.Length; i++)
             {
-                if (m_buffer[i] == 0x00 && m_buffer[i + 1] == 0xED && m_buffer[i + 2] == 0xED && m_buffer[i + 3] == 0x00)
-                {
-                    break;
-                }
+                if (m_buffer[i] == 0x00 && m_buffer[i + 1] == 0xED && m_buffer[i + 2] == 0xED && m_buffer[i + 3] == 0x00) break;
 
                 if (i < m_buffer.Length - 4)
                 {
@@ -62,22 +59,13 @@ namespace ZxDisAsm
                         int repeat = m_buffer[i++];
                         byte value = m_buffer[i];
                         for (int j = 0; j < repeat; j++)
-                        {
-                            page[offset] = value;
-                            offset++;
-                        }
+                            page[offset++] = value;
                     }
                     else
-                    {
-                        page[offset] = m_buffer[i];
-                        offset++;
-                    }
+                        page[offset++] = m_buffer[i];
                 }
                 else
-                {
-                    page[offset] = m_buffer[i];
-                    offset++;
-                }
+                    page[offset++] = m_buffer[i];
             }
         }
 
@@ -89,11 +77,6 @@ namespace ZxDisAsm
 
             for (int i = blockStartPos; i < blockStartPos + blockSize; i++)
             {
-                //if (block[i] == 0x00 && block[i + 1] == 0xED && block[i + 2] == 0xED && block[i + 3] == 0x00)
-                //{
-                //    break;
-                //}
-
                 if (i < blockStartPos + blockSize - 4)
                 {
                     if (block[i] == 0xED && block[i + 1] == 0xED && bCompression)
@@ -102,22 +85,13 @@ namespace ZxDisAsm
                         int repeat = block[i++];
                         byte value = block[i];
                         for (int j = 0; j < repeat; j++)
-                        {
-                            pageRet[offset] = value;
-                            offset++;
-                        }
+                            pageRet[offset++] = value;
                     }
                     else
-                    {
-                        pageRet[offset] = block[i];
-                        offset++;
-                    }
+                        pageRet[offset++] = block[i];
                 }
                 else
-                {
-                    pageRet[offset] = block[i];
-                    offset++;
-                }
+                    pageRet[offset++] = block[i];
             }
 
             return pageRet;
@@ -145,9 +119,40 @@ namespace ZxDisAsm
         private void GetHeader()
         {
             // TODO: IF PC IS ZERO THEN THIS IS A VERSION 2/3 OF THE FILE AND AN ADDITIONAL HEADER MUST BE READ
-            GCHandle handle = GCHandle.Alloc(m_buffer, GCHandleType.Pinned);
-            m_header = (BasicFileHeader)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(BasicFileHeader));
-            m_isCompressed = (m_header.Flags1 & 0x20) == 0x20;
+            //GCHandle handle = GCHandle.Alloc(m_buffer, GCHandleType.Pinned);
+            //m_header = (BasicFileHeader)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(BasicFileHeader));
+
+            m_header.A = getByte(0);
+            m_header.F = getByte(1);
+            m_header.BC = getUshort(2);
+            m_header.HL = getUshort(4);
+            m_header.PC = getUshort(6);
+            m_header.SP = getUshort(8);
+            m_header.I = getByte(10);
+            m_header.R = getByte(11);
+            byte byte12 = getByte(12);
+            m_header.R |=(byte)((byte12 & 0x01) << 7);
+            m_header.border = (byte)((byte12 >> 1) & 0x07);
+            m_isCompressed = ((byte12 & 0x20) != 0);
+
+            m_header.DE = getUshort(13);
+            m_header.BC_Dash = getUshort(15);
+            m_header.DE_Dash = getUshort(17);
+            m_header.HL_Dash = getUshort(19);
+            m_header.A_Dash = getByte(21);
+            m_header.F_Dash = getByte(22);
+            m_header.IY = getUshort(23);
+            m_header.IX = getUshort(25);
+
+            m_header.IY = getUshort(23);
+            m_header.IX = getUshort(25);
+            m_header.IFF1 = getByte(27) > 0;
+            m_header.IFF1 = getByte(28) > 0;
+
+            byte byte29 = getByte(29);
+            m_header.IM = (byte)(byte29 & 0x3);
+
+
 
             //Размер uiExtBlockSize == 23 для версии 2, и 54 для версии 3
             int uiExtBlockSize = m_buffer[31] << 8 | m_buffer[30];
@@ -202,6 +207,16 @@ namespace ZxDisAsm
 
         }
 
+        private byte getByte(int offset)
+        {
+            return m_buffer[offset];
+        }
+
+        private ushort getUshort(int offset)
+        {
+            return (ushort)(m_buffer[offset + 1] << 8 | m_buffer[offset]);
+        }
+
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -223,7 +238,7 @@ namespace ZxDisAsm
         /// Bit 5  : 1=Block of data is compressed
         /// Bit 6-7: No meaning
         /// </summary>
-        public byte Flags1;
+        //public byte Flags1;
         public ushort DE;
         public ushort BC_Dash;
         public ushort DE_Dash;
@@ -232,8 +247,11 @@ namespace ZxDisAsm
         public byte F_Dash;
         public ushort IY;
         public ushort IX;
-        public byte DIEI;
-        public byte IFF2;
-        public byte Flags2;
+        public bool IFF1;
+        public bool IFF2;
+        public byte IM;
+
+        public byte border;
+
     }
 }
